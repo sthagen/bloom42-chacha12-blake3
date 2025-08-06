@@ -1,0 +1,15 @@
+[package]
+name = "benchmarks"
+version = "0.1.0"
+edition = "2024"
+
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+aes-gcm = { version = "0.10" }
+chacha12-blake3 = { path = "../chacha12-blake3", default-features = false }
+chacha20poly1305 = { version = "0.10" }
+
+[[bench]]
+name = "encrypt"
+harness = false

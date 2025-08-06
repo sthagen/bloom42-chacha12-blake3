@@ -1,0 +1,37 @@
+[package]
+name = "chacha12-blake3"
+# Also update README
+version = "0.9.10"
+edition = "2024"
+rust-version = "1.85"
+description = "Secure, Simple and Fast encryption for any CPU"
+homepage = "https://kerkour.com/chacha12-blake3"
+documentation = "https://docs.rs/chacha12-blake3"
+repository = "https://github.com/bloom42/chacha12-blake3"
+license = "MIT"
+keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12"]
+categories = ["cryptography"]
+readme = "../README.md"
+
+[lib]
+path = "./chacha12_blake3.rs"
+
+[dependencies]
+blake3 = { version = "1", default-features = false, features = ["neon", "wasm32_simd"] }
+chacha20 =  { version = "0.10.0-rc.0", features = ["legacy"] }
+constant_time_eq = "0.4"
+zeroize = { version = "1", features = ["simd", "derive"], optional = true }
+
+[features]
+default = ["alloc", "zeroize"]
+
+# the alloc feature enables the `encrypt` and `decrypt` APIs
+alloc = ["zeroize?/alloc"]
+
+# erase sensitive secrets from memory
+zeroize = ["dep:zeroize", "blake3/zeroize"]
+
+
+[dev-dependencies]
+hex = "0.4"
+rand = "0.9"
