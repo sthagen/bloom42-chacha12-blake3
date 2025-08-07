@@ -136,7 +136,7 @@ version = "0.1.0"
 
 [[package]]
 name = "chacha12-blake3"
-version = "0.9.10"
+version = "0.9.11"
 dependencies = [
  "blake3",
  "chacha20 0.10.0-rc.0",

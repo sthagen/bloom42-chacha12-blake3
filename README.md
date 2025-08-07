@@ -13,6 +13,7 @@ Making it a great fit for everything from microcontrollers to huge servers.
 
 It was designed to be the only encryption algorithm you will ever need.
 
+> **⚠️ Warning ⚠️:** This is a preliminary release, use with caution.
 
 
 ## Specification
@@ -34,7 +35,7 @@ It was designed to be the only encryption algorithm you will ever need.
 </div>
 
 
-**Warning ⚠️: A (key, nonce) pair SHOULD NEVER be used to encrypt two messages. You can use either an unique key for every message, the same key with unique random nonces, or the same key with a NON-REPEATING counter in the first X bytes of the nonce.**
+**Warning ⚠️: A (key, nonce) pair SHOULD NEVER be used to encrypt two messages. You can use either the same key with unique random nonces, an unique key with random or fixed nonces, or the same key with a NON-REPEATING counter in the first X bytes of the nonce. See the specification to learn how much data you can safely encrypt.**
 
 `Cargo.toml`
 ```toml
@@ -68,7 +69,7 @@ fn main() {
 
 | Feature | Default? | Description |
 | --------| ---------| ----------- |
-| `alloc` | ✓ | Enables `encrypt` / `decrypt` APIs that allocate memory |
+| `alloc` | ✓ | Enables the `encrypt` / `decrypt` APIs that allocate memory |
 | `zeroize` | ✓ | Enables [`zeroize`](https://crates.io/crates/zeroize) to erase sensitive secrets from memory |
 
 

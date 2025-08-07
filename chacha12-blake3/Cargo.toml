@@ -1,15 +1,15 @@
 [package]
 name = "chacha12-blake3"
 # Also update README
-version = "0.9.10"
+version = "0.9.11"
 edition = "2024"
 rust-version = "1.85"
-description = "Secure, Simple and Fast encryption for any CPU"
+description = "ChaCha12-BLAKE3: Secure, Simple and Fast encryption for any CPU"
 homepage = "https://kerkour.com/chacha12-blake3"
 documentation = "https://docs.rs/chacha12-blake3"
 repository = "https://github.com/bloom42/chacha12-blake3"
 license = "MIT"
-keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12"]
+keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12", "aead"]
 categories = ["cryptography"]
 readme = "../README.md"
 
