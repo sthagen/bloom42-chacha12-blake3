@@ -55,14 +55,14 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
     }
 
     pub fn xor_keystream(&mut self, plaintext: &mut [u8]) {
-        #[cfg(target_feature = "neon")]
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         if plaintext.len() >= 128 {
             self.counter = chacha_neon::<ROUNDS>(self.state, self.counter, plaintext);
             return;
         }
 
-        #[cfg(all(target_arch = "x86_64"))]
-        {
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
+        if plaintext.len() >= 128 {
             self.counter = chacha_avx2::<ROUNDS>(self.state, self.counter, plaintext);
             return;
         }
