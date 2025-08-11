@@ -15,7 +15,7 @@ jobs:
 
       - name: install dependencies
         run: |
-          sudo apt install -y clang libc6-dev lld
+          sudo apt install -y lld
           rustup update stable
 
       - name: cargo publish chacha12-blake3
