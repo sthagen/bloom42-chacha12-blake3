@@ -19,6 +19,7 @@ jobs:
       - name: Run tests
         run: |
           make test
+          RUSTFLAGS="-C target-feature=-avx2" make test
 
   tests_arm64:
     runs-on: ubuntu-24.04-arm

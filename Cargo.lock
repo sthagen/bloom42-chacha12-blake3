@@ -133,12 +133,16 @@ checksum = "9555578bc9e57714c812a1f84e4fc5b4d21fcb063490c624de019f7464c91268"
 [[package]]
 name = "chacha12"
 version = "0.1.0"
+dependencies = [
+ "hex",
+]
 
 [[package]]
 name = "chacha12-blake3"
 version = "0.9.11"
 dependencies = [
  "blake3",
+ "chacha12",
  "chacha20 0.10.0-rc.0",
  "constant_time_eq 0.4.2",
  "hex",

@@ -1,0 +1,164 @@
+use core::arch::aarch64::*;
+
+use crate::STATE_WORDS;
+
+/// optimized rotate_left for NEON
+macro_rules! rotate_left {
+    ($v:expr, 8) => {{
+        let mask_bytes = [3u8, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14];
+        let mask = vld1q_u8(mask_bytes.as_ptr());
+
+        $v = vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32($v), mask))
+    }};
+    ($v:expr, 16) => {
+        $v = vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32($v)))
+    };
+    ($v:expr, $r:literal) => {
+        $v = vorrq_u32(vshlq_n_u32($v, $r), vshrq_n_u32($v, 32 - $r))
+    };
+}
+
+// NEON instructions use 128-bit wide vectors, thus we compute 128 / 32 = 4 ChaCha blocks
+// in parallel.
+// Each vector can be seen as a 4 lanes, where each lane is 32-bit wide.
+// Thus, in a single vector we will get the follwing state:
+// [ block1 (32-bits) || block2 (32-bits) || block3 (32-bits) || block4 (32-bits) ]
+// then we perform the normal ChaCha operations on these vectors, meaning that we compute
+// 4 ChaCha blocks in parallel for every operation on these vectors.
+pub fn chacha_neon<const ROUNDS: usize>(state: [u32; 16], mut counter: u64, input: &mut [u8]) -> u64 {
+    // process 4 blocks of 64 bytes (4 * 16) in parallel
+    let mut state_simd: [uint32x4_t; STATE_WORDS] = unsafe {
+        [
+            // constant
+            vdupq_n_u32(state[0]),
+            vdupq_n_u32(state[1]),
+            vdupq_n_u32(state[2]),
+            vdupq_n_u32(state[3]),
+            // key
+            vdupq_n_u32(state[4]),
+            vdupq_n_u32(state[5]),
+            vdupq_n_u32(state[6]),
+            vdupq_n_u32(state[7]),
+            vdupq_n_u32(state[8]),
+            vdupq_n_u32(state[9]),
+            vdupq_n_u32(state[10]),
+            vdupq_n_u32(state[11]),
+            // counter, set to 0, it will be injected later
+            vld1q_u32([0, 0, 0, 0].as_ptr()),
+            vld1q_u32([0, 0, 0, 0].as_ptr()),
+            // nonce
+            vdupq_n_u32(state[14]),
+            vdupq_n_u32(state[15]),
+        ]
+    };
+
+    for input_blocks in input.chunks_mut(64 * 4) {
+        unsafe {
+            // inject counters
+            // TODO: there should be a better / faster way
+            let counter2 = counter + 1;
+            let counter3 = counter + 2;
+            let counter4 = counter + 3;
+
+            state_simd[12] = vld1q_u32([counter as u32, counter2 as u32, counter3 as u32, counter4 as u32].as_ptr());
+            state_simd[13] = vld1q_u32(
+                [
+                    (counter >> 32) as u32,
+                    (counter2 >> 32) as u32,
+                    (counter3 >> 32) as u32,
+                    (counter4 >> 32) as u32,
+                ]
+                .as_ptr(),
+            );
+
+            // compute 4 blocks in parallel
+            chacha_neon_4blocks::<ROUNDS>(state_simd, input_blocks);
+        };
+
+        counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
+    }
+
+    return counter;
+}
+
+/// Compute 4 64-byte ChaCha blocks in parallel using NEON vectors.
+#[inline]
+fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], input: &mut [u8]) {
+    // tmp_state is the "working state" where we perform the ChaCha operations
+    let mut tmp_state = state;
+
+    for _ in 0..ROUNDS / 2 {
+        // column rounds
+        quarter_round(&mut tmp_state, 0, 4, 8, 12);
+        quarter_round(&mut tmp_state, 1, 5, 9, 13);
+        quarter_round(&mut tmp_state, 2, 6, 10, 14);
+        quarter_round(&mut tmp_state, 3, 7, 11, 15);
+
+        // diagonal rounds
+        quarter_round(&mut tmp_state, 0, 5, 10, 15);
+        quarter_round(&mut tmp_state, 1, 6, 11, 12);
+        quarter_round(&mut tmp_state, 2, 7, 8, 13);
+        quarter_round(&mut tmp_state, 3, 4, 9, 14);
+    }
+
+    // serialize the keystream as follow:
+    // block1 || block2 || block3 || block4
+    let mut keystream = [0u32; 16 * 4];
+
+    // Each iteration of the loop writes a 32-bit word for each block into keystream.
+    // The first iteration writes block1[0], block2[0], block3[0], block4[0]
+    // the second iterations writes block1[1], block2[1], block3[1], block4[1]
+    // and so on, for the 16 32-bit words of the ChaCha state
+    for word_index in 0..STATE_WORDS {
+        // add working state to initial state to get the keystream
+        let keystream_simd = unsafe { vaddq_u32(tmp_state[word_index], state[word_index]) };
+        let mut tmp = [0u32; 4];
+        unsafe { vst1q_u32(tmp.as_mut_ptr(), keystream_simd) };
+
+        // TODO: there should be a fast way to directly XOR input with keystream SIMD here
+        for block in 0..4 {
+            keystream[(block * STATE_WORDS) + word_index] = tmp[block].to_le();
+        }
+    }
+
+    // the keystream is our 4 64-byte blocks computed in parallel
+    // block1 || block2 || block3 || block4
+    let keystream = unsafe { std::mem::transmute::<[u32; 16 * 4], [u8; 64 * 4]>(keystream) };
+
+    // finally, we XOR the input blocks with the keystream
+    for (i, block) in input.chunks_mut(64).enumerate() {
+        block
+            .iter_mut()
+            .zip(keystream[64 * i..].into_iter())
+            .for_each(|(plaintext, keystream)| *plaintext ^= *keystream);
+    }
+}
+
+#[inline]
+fn quarter_round(state: &mut [uint32x4_t; 16], a: usize, b: usize, c: usize, d: usize) {
+    unsafe {
+        // a += b; d ^= a; d <<<= 16
+        state[a] = vaddq_u32(state[a], state[b]);
+        state[d] = veorq_u32(state[d], state[a]);
+        // *d = vorrq_u32(vshlq_n_u32(*d, 16), vshrq_n_u32(*d, 16));
+        rotate_left!(state[d], 16);
+
+        // c += d; b ^= c; b <<<= 12
+        state[c] = vaddq_u32(state[c], state[d]);
+        state[b] = veorq_u32(state[b], state[c]);
+        // *b = vorrq_u32(vshlq_n_u32(*b, 12), vshrq_n_u32(*b, 20));
+        rotate_left!(state[b], 12);
+
+        // a += b; d ^= a; d <<<= 8
+        state[a] = vaddq_u32(state[a], state[b]);
+        state[d] = veorq_u32(state[d], state[a]);
+        // *d = vorrq_u32(vshlq_n_u32(*d, 8), vshrq_n_u32(*d, 24));
+        rotate_left!(state[d], 8);
+
+        // c += d; b ^= c; b <<<= 7
+        state[c] = vaddq_u32(state[c], state[d]);
+        state[b] = veorq_u32(state[b], state[c]);
+        // *b = vorrq_u32(vshlq_n_u32(*b, 7), vshrq_n_u32(*b, 25));
+        rotate_left!(state[b], 7);
+    }
+}

@@ -11,7 +11,8 @@ test:
 .PHONY: bench
 bench:
 	RUSTFLAGS="-C target-cpu=native --cfg chacha20_force_avx2" cargo bench
-
+# -C target-feature=+aes,+avx512f,+ssse3,+vaes
+# --cfg aes_avx256 or --cfg aes_avx512
 
 .PHONY: release
 release: mdninja

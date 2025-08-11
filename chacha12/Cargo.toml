@@ -2,10 +2,14 @@
 name = "chacha12"
 version = "0.1.0"
 edition = "2024"
-description = "Pure-Rust, SIMD-accelerated ChaCha12 for any platform"
+description = "Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform"
 repository = "https://github.com/bloom42/chacha12-blake3"
 license = "MIT"
-keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12"]
+keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12", "simd"]
 categories = ["cryptography"]
 
 [dependencies]
+
+
+[dev-dependencies]
+hex = "0.4"
