@@ -5,8 +5,8 @@ edition = "2024"
 description = "Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform"
 repository = "https://github.com/bloom42/chacha12-blake3"
 license = "MIT"
-keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12", "simd"]
-categories = ["cryptography"]
+keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12", "simd", "wasm", "chacha", "webassembly"]
+categories = ["cryptography", "wasm"]
 
 [dependencies]
 

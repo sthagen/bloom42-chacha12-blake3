@@ -7,7 +7,14 @@ use crate::STATE_WORDS;
 /// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 128 / 32)
 pub const SIMD_LANES: usize = 4;
 
-pub fn chacha_wasm_simd128<const ROUNDS: usize>(state: [u32; 16], mut counter: u64, input: &mut [u8]) -> u64 {
+pub fn chacha_wasm_simd128<const ROUNDS: usize>(
+    state: [u32; 16],
+    mut counter: u64,
+    input: &mut [u8],
+    last_keystream_block: &mut [u8; 64],
+) -> u64 {
+    let mut keystream = [0u8; SIMD_LANES * 64];
+
     let mut initial_state: [v128; 16] = [
         // constant
         i32x4_splat(state[0] as i32),
@@ -49,7 +56,6 @@ pub fn chacha_wasm_simd128<const ROUNDS: usize>(state: [u32; 16], mut counter: u
         }
 
         // compute 4 64-byte ChaCha blocks in parallel
-        let mut keystream = [0u8; SIMD_LANES * 64];
         chacha20_wasm_4blocks::<ROUNDS>(initial_state, &mut keystream);
 
         // XOR plaintext with keystream
@@ -60,6 +66,10 @@ pub fn chacha_wasm_simd128<const ROUNDS: usize>(state: [u32; 16], mut counter: u
 
         counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
     }
+
+    let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
+    let last_keystream_block_offset = last_keystream_block_index * 64;
+    last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
 
     return counter;
 }
@@ -74,6 +84,8 @@ fn rotate_left(a: v128, n: u32) -> v128 {
 /// [ block1 (64 bytes) || block2 (64 bytes) || block3 (64 bytes) || block4 (64 bytes) ... ]
 #[inline(always)]
 fn chacha20_wasm_4blocks<const ROUNDS: usize>(initial_state: [v128; 16], keystream: &mut [u8; SIMD_LANES * 64]) {
+    let keystream_ptr = keystream.as_mut_ptr();
+
     unsafe {
         let mut working_state = initial_state;
 
@@ -120,7 +132,6 @@ fn chacha20_wasm_4blocks<const ROUNDS: usize>(initial_state: [v128; 16], keystre
         // the second iteration writes block1[4..8], block2[4..8], block3[4..8], block4[4..8]
         // the third iteration writes block1[4..8], block2[8..12], block3[8..12], block4[8..12]
         // and so on, for the 16 32-bit words of the ChaCha state
-        let keystream_ptr = keystream.as_mut_ptr();
         for word_index in 0..STATE_WORDS {
             // first we add the working state to the initial state to get the keystream
             working_state[word_index] = i32x4_add(working_state[word_index], initial_state[word_index]);

@@ -5,7 +5,7 @@ use crate::chacha_neon::chacha_neon;
 #[cfg(target_arch = "aarch64")]
 mod chacha_neon;
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64")))]
 mod chacha_avx2;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
@@ -29,7 +29,8 @@ const STATE_WORDS: usize = 16;
 pub struct ChaCha<const ROUNDS: usize> {
     state: [u32; 16],
     counter: u64,
-    inner_block_counter: usize,
+    last_keystream_block: [u8; 64],
+    last_keystream_block_index: usize,
 }
 
 impl<const ROUNDS: usize> ChaCha<ROUNDS> {
@@ -48,62 +49,80 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
         state[14] = u32::from_le_bytes(nonce[0..4].try_into().unwrap());
         state[15] = u32::from_le_bytes(nonce[4..8].try_into().unwrap());
 
-        // WARNING: this is unsafe because transmute ensure the alignement of values themselves, but when
-        // pointers / references to values, as it's the case here
-        // #[cfg(target_endian = "little")]
-        // {
-        //     // on little-endian platforms it's a simple memcpy
-        //     state[4..=11].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 32], &[u32; 8]>(key) });
-        //     state[14..=15].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 8], &[u32; 2]>(nonce) });
-        // }
-
         ChaCha {
             state,
             counter: 0,
-            inner_block_counter: 0,
+            last_keystream_block: [0u8; 64],
+            last_keystream_block_index: 0,
         }
     }
 
     pub fn xor_keystream(&mut self, mut plaintext: &mut [u8]) {
-        if self.inner_block_counter != 0 {
-            // xor the first bytes of the plaintext with the first byt
-            chacha_generic::<ROUNDS>(self.state, self.counter - 1, &mut plaintext[..self.inner_block_counter]);
-            plaintext = &mut plaintext[self.inner_block_counter..];
+        if plaintext.len() == 0 {
+            return;
         }
-        self.inner_block_counter += plaintext.len() % 64;
-        if self.inner_block_counter >= 64 {
-            self.inner_block_counter %= 64;
+
+        if self.last_keystream_block_index != 0 {
+            let remaining_keystream = &self.last_keystream_block[self.last_keystream_block_index..];
+
+            plaintext
+                .iter_mut()
+                .zip(remaining_keystream)
+                .for_each(|(plaintext, keystream)| *plaintext ^= *keystream);
+
+            if plaintext.len() == remaining_keystream.len() {
+                self.last_keystream_block_index = 0;
+                return;
+            } else if plaintext.len() < remaining_keystream.len() {
+                self.last_keystream_block_index += plaintext.len();
+                return;
+            } else {
+                // plaintext.len() > remaining_keystream.len()
+                plaintext = &mut plaintext[remaining_keystream.len()..];
+                self.last_keystream_block_index = plaintext.len() % 64;
+            }
+        } else {
+            self.last_keystream_block_index = plaintext.len() % 64;
         }
 
         #[cfg(target_arch = "aarch64")]
         if plaintext.len() >= 128 {
-            self.counter = chacha_neon::<ROUNDS>(self.state, self.counter, plaintext);
+            self.counter = chacha_neon::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
             return;
         }
 
         #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
         if plaintext.len() >= 128 {
-            self.counter = chacha_avx2::<ROUNDS>(self.state, self.counter, plaintext);
+            self.counter = chacha_avx2::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
             return;
         }
 
         // not enabled yet, needs automated testing
         // #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         // if plaintext.len() >= 128 {
-        //     self.counter = chacha_wasm_simd128::<ROUNDS>(self.state, self.counter, plaintext);
+        //     self.counter = chacha_wasm_simd128::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
         //     return;
         // }
 
-        self.counter = chacha_generic::<ROUNDS>(self.state, self.counter, plaintext);
+        self.counter = chacha_generic::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
     }
 
     pub fn set_counter(&mut self, counter: u64) {
         self.counter = counter;
+        self.last_keystream_block_index = 0;
     }
 }
 
 #[inline]
-fn chacha_generic<const ROUNDS: usize>(mut state: [u32; STATE_WORDS], mut counter: u64, plaintext: &mut [u8]) -> u64 {
+fn chacha_generic<const ROUNDS: usize>(
+    mut state: [u32; STATE_WORDS],
+    mut counter: u64,
+    plaintext: &mut [u8],
+    last_keystream_block: &mut [u8; 64],
+) -> u64 {
+    let mut keystream = [0u8; 64];
+    let keystream_ptr = keystream.as_mut_ptr();
+
     // process the input by blocks of 64 bytes
     for plaintext_block in plaintext.chunks_mut(64) {
         // inject counter into state
@@ -129,19 +148,33 @@ fn chacha_generic<const ROUNDS: usize>(mut state: [u32; STATE_WORDS], mut counte
         }
 
         // add initial state to tmp_state to generate the keystream and "serialize" it to little endian
-        for (tmp_word, state_word) in tmp_state.iter_mut().zip(state.iter()) {
-            *tmp_word = tmp_word.wrapping_add(*state_word).to_le();
+        // for (tmp_word, state_word) in tmp_state.iter_mut().zip(state.iter()) {
+        //     *tmp_word = tmp_word.wrapping_add(*state_word).to_le();
+        // }
+        for word_index in 0..STATE_WORDS {
+            // first we add the initial state to the working state to get the keystream
+            tmp_state[word_index] = tmp_state[word_index].wrapping_add(state[word_index]);
+
+            // then we serialize the keystream
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    tmp_state[word_index].to_le_bytes().as_ptr(),
+                    keystream_ptr.add(word_index * 4),
+                    4,
+                );
+            }
         }
 
         // XOR plaintext with keystream
-        let keystream: [u8; 64] = unsafe { std::mem::transmute::<[u32; 16], [u8; 64]>(tmp_state) };
         plaintext_block
             .iter_mut()
-            .zip(keystream.iter())
-            .for_each(|(plaintext, keystream)| *plaintext ^= *keystream);
+            .zip(keystream)
+            .for_each(|(plaintext, keystream)| *plaintext ^= keystream);
 
         counter = counter.wrapping_add(1);
     }
+
+    last_keystream_block.copy_from_slice(&keystream);
 
     return counter;
 }
@@ -178,7 +211,6 @@ mod test {
         nonce: [u8; 8],
         initial_counter: u64,
         plaintext: Vec<u8>,
-
         expected_ciphertext: Vec<u8>,
     }
 
@@ -364,25 +396,25 @@ Expected: {}",
             // should be equal to:
             // cipher.xor_keystream(plaintext[0..30])
 
-            //             let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
-            //             cipher.xor_keystream(&mut plaintext);
-            //             for n in 0..32 {
-            //                 let mut partial_plaintext: Vec<u8> = test.plaintext.clone();
+            let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+            cipher.xor_keystream(&mut plaintext);
+            for n in 0..10 {
+                let mut partial_plaintext: Vec<u8> = test.plaintext.clone();
 
-            //                 let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
-            //                 cipher.xor_keystream(&mut partial_plaintext[..n]);
-            //                 cipher.xor_keystream(&mut partial_plaintext[n..]);
+                let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+                cipher.xor_keystream(&mut partial_plaintext[..n]);
+                cipher.xor_keystream(&mut partial_plaintext[n..]);
 
-            //                 assert_eq!(
-            //                     plaintext,
-            //                     partial_plaintext,
-            //                     "test [{i}] failed. partial encryption is not valid for n = {n}
-            // Got: {}
-            // Expected: {}",
-            //                     hex::encode(&partial_plaintext),
-            //                     hex::encode(&plaintext),
-            //                 )
-            //             }
+                assert_eq!(
+                    plaintext,
+                    partial_plaintext,
+                    "test [{i}] failed. partial encryption is not valid for n = {n}
+            Got: {}
+            Expected: {}",
+                    hex::encode(&partial_plaintext),
+                    hex::encode(&plaintext),
+                )
+            }
         }
     }
 
@@ -394,16 +426,11 @@ Expected: {}",
             0x3e, 0x0d, 0x73, 0xf9, 0x8d, 0xe8, 0x66, 0xe3, 0x46, 0x35, 0x31, 0x80, 0xfd, 0xb7,
         ];
 
-        let mut cipher = ChaCha::<12>::new(key, nonce);
-
-        let mut xs = [0u8; 100];
-
-        cipher.xor_keystream(&mut xs);
-
-        // stream.xor_read(&mut xs).unwrap();
+        let mut buffer = [0u8; 100];
+        ChaCha::<12>::new(key, nonce).xor_keystream(&mut buffer);
 
         assert_eq!(
-            xs.to_vec(),
+            buffer,
             [
                 0x5f, 0x3c, 0x8c, 0x19, 0x0a, 0x78, 0xab, 0x7f, 0xe8, 0x08, 0xca, 0xe9, 0xcb, 0xcb, 0x0a, 0x98, 0x37,
                 0xc8, 0x93, 0x49, 0x2d, 0x96, 0x3a, 0x1c, 0x2e, 0xda, 0x6c, 0x15, 0x58, 0xb0, 0x2c, 0x83, 0xfc, 0x02,
@@ -412,25 +439,22 @@ Expected: {}",
                 0x03, 0xeb, 0xf0, 0x9f, 0x01, 0xbd, 0xba, 0x9d, 0xa0, 0xb6, 0xda, 0x79, 0x1b, 0x2e, 0x64, 0x56, 0x41,
                 0x04, 0x7d, 0x11, 0xeb, 0xf8, 0x50, 0x87, 0xd4, 0xde, 0x5c, 0x01, 0x5f, 0xdd, 0xd0, 0x44,
             ]
-            .to_vec()
         );
     }
 
     #[test]
     fn chacha8_case_1() {
-        let mut cipher = ChaCha::<8>::new(
-            &[
-                0x64, 0x1a, 0xea, 0xeb, 0x08, 0x03, 0x6b, 0x61, 0x7a, 0x42, 0xcf, 0x14, 0xe8, 0xc5, 0xd2, 0xd1, 0x15,
-                0xf8, 0xd7, 0xcb, 0x6e, 0xa5, 0xe2, 0x8b, 0x9b, 0xfa, 0xf8, 0x3e, 0x03, 0x84, 0x26, 0xa7,
-            ],
-            &[0xa1, 0x4a, 0x11, 0x68, 0x27, 0x1d, 0x45, 0x9b],
-        );
+        let key = &[
+            0x64, 0x1a, 0xea, 0xeb, 0x08, 0x03, 0x6b, 0x61, 0x7a, 0x42, 0xcf, 0x14, 0xe8, 0xc5, 0xd2, 0xd1, 0x15, 0xf8,
+            0xd7, 0xcb, 0x6e, 0xa5, 0xe2, 0x8b, 0x9b, 0xfa, 0xf8, 0x3e, 0x03, 0x84, 0x26, 0xa7,
+        ];
+        let nonce = &[0xa1, 0x4a, 0x11, 0x68, 0x27, 0x1d, 0x45, 0x9b];
 
-        let mut xs = [0u8; 100];
-        cipher.xor_keystream(&mut xs);
+        let mut buffer = [0u8; 100];
+        ChaCha::<8>::new(key, nonce).xor_keystream(&mut buffer);
 
         assert_eq!(
-            xs.to_vec(),
+            buffer,
             [
                 0x17, 0x21, 0xc0, 0x44, 0xa8, 0xa6, 0x45, 0x35, 0x22, 0xdd, 0xdb, 0x31, 0x43, 0xd0, 0xbe, 0x35, 0x12,
                 0x63, 0x3c, 0xa3, 0xc7, 0x9b, 0xf8, 0xcc, 0xc3, 0x59, 0x4c, 0xb2, 0xc2, 0xf3, 0x10, 0xf7, 0xbd, 0x54,
@@ -439,7 +463,6 @@ Expected: {}",
                 0x6a, 0xf4, 0xa5, 0xa5, 0x68, 0xaa, 0x33, 0x4c, 0xcd, 0xc3, 0x8a, 0xf5, 0xac, 0xe2, 0x01, 0xdf, 0x84,
                 0xd0, 0xa3, 0xca, 0x22, 0x54, 0x94, 0xca, 0x62, 0x09, 0x34, 0x5f, 0xcf, 0x30, 0x13, 0x2e,
             ]
-            .to_vec()
         );
     }
 }

@@ -47,8 +47,9 @@ chacha12-blake3 = "0.9"
 use chacha12_blake3::ChaCha12Blake3;
 
 fn main() {
-    let key: [u8; 32] = rand::random();
-    let nonce: [u8; 32] = rand::random();
+    // DON'T USE A ALL-ZERO KEY, THIS CODE IS FOR DEMONSTRATION ONLY
+    let key = [0u8; 32];
+    let nonce = [0u8; 32];
     // or with an u64 counter to encrypt up to 2^64 messages:
     // let mut nonce = [0u8; 32];
     // nonce[..8].copy_from_slice(&counter.to_le_bytes());

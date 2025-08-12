@@ -5,7 +5,7 @@ fmt:
 
 .PHONY: check
 check:
-	RUSTFLAGS="-C target-feature=-avx2,-simd128" cargo check 2>/dev/null
+	RUSTFLAGS="-C target-feature=-avx2,-simd128" cargo check
 	cargo check
 
 # check for all supported targets and target features
