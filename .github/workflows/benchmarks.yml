@@ -6,19 +6,16 @@ on:
       - "*"
 
 jobs:
-  benchmarks-amd64:
-    runs-on: ubuntu-latest
+  benchmarks:
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     container: rust:latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          apt update && apt upgrade -y && apt install -y lld
-          cargo --version
-      - run: make bench
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
 
-  benchmarks-arm64:
-    runs-on: ubuntu-24.04-arm
-    container: rust:latest
     steps:
       - uses: actions/checkout@v4
       - run: |
