@@ -84,7 +84,9 @@ name = "benchmarks"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "chacha12",
  "chacha12-blake3",
+ "chacha20 0.10.0-rc.0",
  "chacha20poly1305",
  "criterion",
 ]
