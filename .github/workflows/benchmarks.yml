@@ -1,0 +1,17 @@
+name: benchmarks
+
+on:
+  push:
+    branches:
+      - "*"
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt install -y lld
+          rustup update stable
+          cargo --version
+      - run: make bench

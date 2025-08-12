@@ -3,21 +3,18 @@ name: test
 on:
   push:
     branches:
-      - main
+      - "*"
 
 jobs:
   tests_amd64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Update packages
-        run: |
+      - run: |
           sudo apt install -y lld
           rustup update stable
-
-      - name: Run tests
-        run: |
+          cargo --version
+      - run: |
           make test
           RUSTFLAGS="-C target-feature=-avx2" make test
 
@@ -25,12 +22,8 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
-      - name: Update packages
-        run: |
+      - run: |
           sudo apt install -y lld
           rustup update stable
-
-      - name: Run tests
-        run: |
-          make test
+          cargo --version
+      - run: make test
