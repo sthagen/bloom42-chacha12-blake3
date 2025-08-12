@@ -6,8 +6,18 @@ on:
       - "*"
 
 jobs:
-  benchmarks:
+  benchmarks-amd64:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt install -y lld
+          rustup update stable
+          cargo --version
+      - run: make bench
+
+  benchmarks-arm64:
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - run: |
