@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          apt install -y lld
+          apt update && apt upgrade -y && apt install -y lld
           cargo --version
       - run: |
           make test
@@ -24,6 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          apt install -y lld
+          apt update && apt upgrade -y && apt install -y lld
           cargo --version
       - run: make test
