@@ -40,24 +40,22 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
         state[..4].copy_from_slice(&CONSTANT);
 
         // copy key into state as 4 32-bit little-endian words
-        // and then copy nonce into state as 2 32-bit little-endian words
-        #[cfg(target_endian = "little")]
-        {
-            // on little-endian platforms it's a simple memcpy
-            state[4..=11].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 32], &[u32; 8]>(key) });
-            state[14..=15].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 8], &[u32; 2]>(nonce) });
+        for (state_word, key_chunk) in state[4..12].iter_mut().zip(key.chunks_exact(4)) {
+            *state_word = u32::from_le_bytes(key_chunk.try_into().unwrap());
         }
 
-        #[cfg(not(target_endian = "little"))]
-        {
-            // on other platforms we perform the endianess conversion
-            for (state_word, key_chunk) in state[4..12].iter_mut().zip(key.chunks_exact(4)) {
-                *state_word = u32::from_le_bytes(key_chunk.try_into().unwrap());
-            }
+        // copy nonce into state as 2 32-bit little-endian words
+        state[14] = u32::from_le_bytes(nonce[0..4].try_into().unwrap());
+        state[15] = u32::from_le_bytes(nonce[4..8].try_into().unwrap());
 
-            state[14] = u32::from_le_bytes(nonce[0..4].try_into().unwrap());
-            state[15] = u32::from_le_bytes(nonce[4..8].try_into().unwrap());
-        }
+        // WARNING: this is unsafe because transmute ensure the alignement of values themselves, but when
+        // pointers / references to values, as it's the case here
+        // #[cfg(target_endian = "little")]
+        // {
+        //     // on little-endian platforms it's a simple memcpy
+        //     state[4..=11].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 32], &[u32; 8]>(key) });
+        //     state[14..=15].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 8], &[u32; 2]>(nonce) });
+        // }
 
         ChaCha {
             state,
