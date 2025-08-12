@@ -8,11 +8,11 @@ on:
 jobs:
   tests_amd64:
     runs-on: ubuntu-latest
+    container: rust:latest
     steps:
       - uses: actions/checkout@v4
       - run: |
-          sudo apt install -y lld
-          rustup update stable
+          apt install -y lld
           cargo --version
       - run: |
           make test
@@ -20,10 +20,10 @@ jobs:
 
   tests_arm64:
     runs-on: ubuntu-24.04-arm
+    container: rust:latest
     steps:
       - uses: actions/checkout@v4
       - run: |
-          sudo apt install -y lld
-          rustup update stable
+          apt install -y lld
           cargo --version
       - run: make test
