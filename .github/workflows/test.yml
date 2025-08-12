@@ -37,8 +37,9 @@ jobs:
       - run: |
           apt update && apt upgrade -y && apt install -y lld curl xz-utils
           echo PATH: $PATH
+          export WASMTIME_HOME="$HOME/.wasmtime"
+          export PATH="$WASMTIME_HOME/bin:$PATH"
           curl https://wasmtime.dev/install.sh -sSf | bash
-          ln -s ~/.wasmtime/bin/wasmtime /usr/local/bin/wasmtime
           rustup target add wasm32-wasip1
           cargo --version
       - run: |
