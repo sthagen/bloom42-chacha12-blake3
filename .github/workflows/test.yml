@@ -34,12 +34,13 @@ jobs:
     container: rust:latest
     steps:
       - uses: actions/checkout@v4
+      # create ~/.bashrc file otherwise wasmtime installation fails
       - run: |
           apt update && apt upgrade -y && apt install -y lld curl xz-utils
+          touch ~/.bashrc
           echo PATH: $PATH
-          export WASMTIME_HOME="$HOME/.wasmtime"
-          export PATH="$WASMTIME_HOME/bin:$PATH"
           curl https://wasmtime.dev/install.sh -sSf | bash
+          ln -s ~/.wasmtime/bin/wasmtime /usr/local/bin/wasmtime
           rustup target add wasm32-wasip1
           cargo --version
       - run: |
