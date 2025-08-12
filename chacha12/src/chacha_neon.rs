@@ -2,6 +2,11 @@ use core::arch::aarch64::*;
 
 use crate::STATE_WORDS;
 
+// https://doc.rust-lang.org/stable/core/arch/aarch64
+
+/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 128 / 32)
+pub const SIMD_LANES: usize = 4;
+
 /// optimized rotate_left for NEON
 macro_rules! rotate_left {
     ($v:expr, 8) => {{
@@ -52,24 +57,33 @@ pub fn chacha_neon<const ROUNDS: usize>(state: [u32; 16], mut counter: u64, inpu
         ]
     };
 
-    for input_blocks in input.chunks_mut(64 * 4) {
+    for input_blocks in input.chunks_mut(64 * SIMD_LANES) {
         unsafe {
             // inject counters
             // TODO: there should be a better / faster way
-            let counter2 = counter + 1;
-            let counter3 = counter + 2;
-            let counter4 = counter + 3;
+            let mut counter_lane_low = [0u32; SIMD_LANES];
+            let mut counter_lane_high = [0u32; SIMD_LANES];
+            for i in 0..SIMD_LANES {
+                let counter_lane = counter.wrapping_add(i as u64);
+                counter_lane_low[i] = counter_lane as u32;
+                counter_lane_high[i] = (counter_lane >> 32) as u32;
+            }
+            state_simd[12] = vld1q_u32(counter_lane_low.as_ptr());
+            state_simd[13] = vld1q_u32(counter_lane_high.as_ptr());
+            // let counter2 = counter + 1;
+            // let counter3 = counter + 2;
+            // let counter4 = counter + 3;
 
-            state_simd[12] = vld1q_u32([counter as u32, counter2 as u32, counter3 as u32, counter4 as u32].as_ptr());
-            state_simd[13] = vld1q_u32(
-                [
-                    (counter >> 32) as u32,
-                    (counter2 >> 32) as u32,
-                    (counter3 >> 32) as u32,
-                    (counter4 >> 32) as u32,
-                ]
-                .as_ptr(),
-            );
+            // state_simd[12] = vld1q_u32([counter as u32, counter2 as u32, counter3 as u32, counter4 as u32].as_ptr());
+            // state_simd[13] = vld1q_u32(
+            //     [
+            //         (counter >> 32) as u32,
+            //         (counter2 >> 32) as u32,
+            //         (counter3 >> 32) as u32,
+            //         (counter4 >> 32) as u32,
+            //     ]
+            //     .as_ptr(),
+            // );
 
             // compute 4 blocks in parallel
             chacha_neon_4blocks::<ROUNDS>(state_simd, input_blocks);
@@ -82,7 +96,7 @@ pub fn chacha_neon<const ROUNDS: usize>(state: [u32; 16], mut counter: u64, inpu
 }
 
 /// Compute 4 64-byte ChaCha blocks in parallel using NEON vectors.
-#[inline]
+#[inline(always)]
 fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], input: &mut [u8]) {
     // tmp_state is the "working state" where we perform the ChaCha operations
     let mut tmp_state = state;
@@ -103,7 +117,9 @@ fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], in
 
     // serialize the keystream as follow:
     // block1 || block2 || block3 || block4
-    let mut keystream = [0u32; 16 * 4];
+    // let mut keystream = [0u32; 16 * 4];
+    let mut keystream = [0u8; 64 * SIMD_LANES];
+    let keystream_ptr = keystream.as_mut_ptr();
 
     // Each iteration of the loop writes a 32-bit word for each block into keystream.
     // The first iteration writes block1[0], block2[0], block3[0], block4[0]
@@ -112,29 +128,34 @@ fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], in
     for word_index in 0..STATE_WORDS {
         // add working state to initial state to get the keystream
         let keystream_simd = unsafe { vaddq_u32(tmp_state[word_index], state[word_index]) };
-        let mut tmp = [0u32; 4];
-        unsafe { vst1q_u32(tmp.as_mut_ptr(), keystream_simd) };
+        let mut lanes = [0u32; SIMD_LANES];
+        unsafe { vst1q_u32(lanes.as_mut_ptr(), keystream_simd) };
 
         // TODO: there should be a fast way to directly XOR input with keystream SIMD here
-        for block in 0..4 {
-            keystream[(block * STATE_WORDS) + word_index] = tmp[block].to_le();
+        for block in 0..SIMD_LANES {
+            // keystream[(block * STATE_WORDS) + word_index] = tmp[block].to_le();
+            let byte_offset = (block * STATE_WORDS * 4) + (word_index * 4);
+            unsafe {
+                std::ptr::copy_nonoverlapping(lanes[block].to_le_bytes().as_ptr(), keystream_ptr.add(byte_offset), 4);
+            }
+            // keystream[(block * STATE_WORDS) + word_index] = tmp[block].to_le();
         }
     }
 
     // the keystream is our 4 64-byte blocks computed in parallel
     // block1 || block2 || block3 || block4
-    let keystream = unsafe { std::mem::transmute::<[u32; 16 * 4], [u8; 64 * 4]>(keystream) };
+    // let keystream = unsafe { std::mem::transmute::<[u32; 16 * 4], [u8; 64 * 4]>(keystream) };
 
     // finally, we XOR the input blocks with the keystream
-    for (i, block) in input.chunks_mut(64).enumerate() {
-        block
+    for (i, input_block) in input.chunks_mut(64).enumerate() {
+        input_block
             .iter_mut()
             .zip(keystream[64 * i..].into_iter())
             .for_each(|(plaintext, keystream)| *plaintext ^= *keystream);
     }
 }
 
-#[inline]
+#[inline(always)]
 fn quarter_round(state: &mut [uint32x4_t; 16], a: usize, b: usize, c: usize, d: usize) {
     unsafe {
         // a += b; d ^= a; d <<<= 16

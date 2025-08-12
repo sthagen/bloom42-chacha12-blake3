@@ -1,14 +1,21 @@
+// aarch64 assumes that the NEON extension is always present
 #[cfg(target_arch = "aarch64")]
 use crate::chacha_neon::chacha_neon;
 
 #[cfg(target_arch = "aarch64")]
 mod chacha_neon;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
 mod chacha_avx2;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
 use chacha_avx2::chacha_avx2;
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod chacha_wasm_simd128;
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use chacha_wasm_simd128::chacha_wasm_simd128;
 
 const CONSTANT: [u32; 4] = [
     0x61707865, // "expa"
@@ -22,6 +29,7 @@ const STATE_WORDS: usize = 16;
 pub struct ChaCha<const ROUNDS: usize> {
     state: [u32; 16],
     counter: u64,
+    inner_block_counter: usize,
 }
 
 impl<const ROUNDS: usize> ChaCha<ROUNDS> {
@@ -33,29 +41,43 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
 
         // copy key into state as 4 32-bit little-endian words
         // and then copy nonce into state as 2 32-bit little-endian words
-        // #[cfg(target_endian = "little")]
-        // {
-        //     // on little-endian platforms it's a simple memcpy
-        //     state[4..=11].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 32], &[u32; 8]>(key) });
-        //     state[14..=15].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 8], &[u32; 2]>(nonce) });
-        // }
-
-        // #[cfg(not(target_endian = "little"))]
-        // {
-        // on other platforms we perform the endianess conversion
-        for (state_word, key_chunk) in state[4..12].iter_mut().zip(key.chunks_exact(4)) {
-            *state_word = u32::from_le_bytes(key_chunk.try_into().unwrap());
+        #[cfg(target_endian = "little")]
+        {
+            // on little-endian platforms it's a simple memcpy
+            state[4..=11].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 32], &[u32; 8]>(key) });
+            state[14..=15].copy_from_slice(unsafe { std::mem::transmute::<&[u8; 8], &[u32; 2]>(nonce) });
         }
 
-        state[14] = u32::from_le_bytes(nonce[0..4].try_into().unwrap());
-        state[15] = u32::from_le_bytes(nonce[4..8].try_into().unwrap());
-        // }
+        #[cfg(not(target_endian = "little"))]
+        {
+            // on other platforms we perform the endianess conversion
+            for (state_word, key_chunk) in state[4..12].iter_mut().zip(key.chunks_exact(4)) {
+                *state_word = u32::from_le_bytes(key_chunk.try_into().unwrap());
+            }
 
-        ChaCha { state, counter: 0 }
+            state[14] = u32::from_le_bytes(nonce[0..4].try_into().unwrap());
+            state[15] = u32::from_le_bytes(nonce[4..8].try_into().unwrap());
+        }
+
+        ChaCha {
+            state,
+            counter: 0,
+            inner_block_counter: 0,
+        }
     }
 
-    pub fn xor_keystream(&mut self, plaintext: &mut [u8]) {
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+    pub fn xor_keystream(&mut self, mut plaintext: &mut [u8]) {
+        if self.inner_block_counter != 0 {
+            // xor the first bytes of the plaintext with the first byt
+            chacha_generic::<ROUNDS>(self.state, self.counter - 1, &mut plaintext[..self.inner_block_counter]);
+            plaintext = &mut plaintext[self.inner_block_counter..];
+        }
+        self.inner_block_counter += plaintext.len() % 64;
+        if self.inner_block_counter >= 64 {
+            self.inner_block_counter %= 64;
+        }
+
+        #[cfg(target_arch = "aarch64")]
         if plaintext.len() >= 128 {
             self.counter = chacha_neon::<ROUNDS>(self.state, self.counter, plaintext);
             return;
@@ -67,7 +89,14 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
             return;
         }
 
-        chacha_generic::<ROUNDS>(self.state, self.counter, plaintext);
+        // not enabled yet, needs automated testing
+        // #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        // if plaintext.len() >= 128 {
+        //     self.counter = chacha_wasm_simd128::<ROUNDS>(self.state, self.counter, plaintext);
+        //     return;
+        // }
+
+        self.counter = chacha_generic::<ROUNDS>(self.state, self.counter, plaintext);
     }
 
     pub fn set_counter(&mut self, counter: u64) {
@@ -119,20 +148,24 @@ fn chacha_generic<const ROUNDS: usize>(mut state: [u32; STATE_WORDS], mut counte
     return counter;
 }
 
-#[inline]
+#[inline(always)]
 const fn quarter_round(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {
+    // a += b; d ^= a; d <<<= 16
     state[a] = state[a].wrapping_add(state[b]);
     state[d] ^= state[a];
     state[d] = state[d].rotate_left(16);
 
+    // c += d; b ^= c; b <<<= 12
     state[c] = state[c].wrapping_add(state[d]);
     state[b] ^= state[c];
     state[b] = state[b].rotate_left(12);
 
+    // a += b; d ^= a; d <<<= 8
     state[a] = state[a].wrapping_add(state[b]);
     state[d] ^= state[a];
     state[d] = state[d].rotate_left(8);
 
+    // c += d; b ^= c; b <<<= 7
     state[c] = state[c].wrapping_add(state[d]);
     state[b] ^= state[c];
     state[b] = state[b].rotate_left(7);
@@ -295,35 +328,63 @@ f39c6402c42234e32a356b3e764312a6\
             },
         ];
 
-        for (i, mut test) in tests.into_iter().enumerate() {
+        for (i, test) in tests.into_iter().enumerate() {
             let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
             cipher.set_counter(test.initial_counter);
 
-            let initial_plaintext = test.plaintext.clone();
-            cipher.xor_keystream(&mut test.plaintext);
+            let mut plaintext = test.plaintext.clone();
+            cipher.xor_keystream(&mut plaintext);
 
             assert_eq!(
-                test.plaintext,
+                plaintext,
                 test.expected_ciphertext,
                 "test [{i}] failed
 Got ciphertext: {}
 Expected ciphertext: {}",
-                hex::encode(&test.plaintext),
+                hex::encode(&plaintext),
                 hex::encode(&test.expected_ciphertext),
             );
 
+            let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
             cipher.set_counter(test.initial_counter);
-            cipher.xor_keystream(&mut test.plaintext);
+            cipher.xor_keystream(&mut plaintext);
 
             assert_eq!(
+                plaintext,
                 test.plaintext,
-                initial_plaintext,
                 "test [{i}] failed. Initial plaintext != decrypt(encrypt(plaintext))
 Got: {}
 Expected: {}",
+                hex::encode(&plaintext),
                 hex::encode(&test.plaintext),
-                hex::encode(&initial_plaintext),
             );
+
+            // ensure that the encryption is correct even for plaintexts that are not % 64 (block size)
+            // thus:
+            // cipher.xor_keystream(plaintext[0..10])
+            // cipher.xor_keystream(plaintext[10..30])
+            // should be equal to:
+            // cipher.xor_keystream(plaintext[0..30])
+
+            //             let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+            //             cipher.xor_keystream(&mut plaintext);
+            //             for n in 0..32 {
+            //                 let mut partial_plaintext: Vec<u8> = test.plaintext.clone();
+
+            //                 let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+            //                 cipher.xor_keystream(&mut partial_plaintext[..n]);
+            //                 cipher.xor_keystream(&mut partial_plaintext[n..]);
+
+            //                 assert_eq!(
+            //                     plaintext,
+            //                     partial_plaintext,
+            //                     "test [{i}] failed. partial encryption is not valid for n = {n}
+            // Got: {}
+            // Expected: {}",
+            //                     hex::encode(&partial_plaintext),
+            //                     hex::encode(&plaintext),
+            //                 )
+            //             }
         }
     }
 

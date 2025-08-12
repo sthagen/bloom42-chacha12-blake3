@@ -3,6 +3,24 @@ fmt:
 	cargo fmt
 
 
+.PHONY: check
+check:
+	RUSTFLAGS="-C target-feature=-avx2,-simd128" cargo check 2>/dev/null
+	cargo check
+
+# check for all supported targets and target features
+.PHONY: check_all
+check_all:
+	RUSTFLAGS="-C target-feature=-avx2" cargo check --target=x86_64-unknown-linux-gnu
+	RUSTFLAGS="-C target-feature=+avx2" cargo check --target=x86_64-unknown-linux-gnu
+
+# aarch64 assumes that NEON is always present
+	RUSTFLAGS="-C target-feature=+neon" cargo check --target=aarch64-unknown-linux-gnu
+
+	RUSTFLAGS="-C target-feature=-simd128" cargo check --target=wasm32-unknown-unknown
+	RUSTFLAGS="-C target-feature=+simd128" cargo check --target=wasm32-unknown-unknown
+
+
 .PHONY: test
 test:
 	cargo test
