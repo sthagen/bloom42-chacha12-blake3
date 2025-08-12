@@ -97,12 +97,12 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
             return;
         }
 
-        // not enabled yet, needs automated testing
-        // #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-        // if plaintext.len() >= 128 {
-        //     self.counter = chacha_wasm_simd128::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
-        //     return;
-        // }
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        if plaintext.len() >= 128 {
+            self.counter =
+                chacha_wasm_simd128::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
+            return;
+        }
 
         self.counter = chacha_generic::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
     }

@@ -76,7 +76,7 @@ pub fn chacha_wasm_simd128<const ROUNDS: usize>(
 
 #[inline(always)]
 fn rotate_left(a: v128, n: u32) -> v128 {
-    v128_or(u32x4_shr(a, n), u32x4_shl(a, 32 - n))
+    v128_or(u32x4_shl(a, n), u32x4_shr(a, 32 - n))
 }
 
 /// Compute 4 64-byte ChaCha blocks in parallel using WASM simd128 vectors.
@@ -142,9 +142,8 @@ fn chacha20_wasm_4blocks<const ROUNDS: usize>(initial_state: [v128; 16], keystre
 
             // each lane is a 32-bit little-endian word
             for block in 0..SIMD_LANES {
-                let word = lanes[block].to_le_bytes();
                 let byte_offset = (block * STATE_WORDS * 4) + (word_index * 4);
-                std::ptr::copy_nonoverlapping(word.as_ptr(), keystream_ptr.add(byte_offset), 4);
+                std::ptr::copy_nonoverlapping(lanes[block].to_le_bytes().as_ptr(), keystream_ptr.add(byte_offset), 4);
             }
         }
     }

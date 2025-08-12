@@ -6,7 +6,7 @@ on:
       - "*"
 
 jobs:
-  tests_amd64:
+  tests-amd64:
     runs-on: ubuntu-latest
     container: rust:latest
     steps:
@@ -18,7 +18,7 @@ jobs:
           make test
           RUSTFLAGS="-C target-feature=-avx2" make test
 
-  tests_arm64:
+  tests-arm64:
     runs-on: ubuntu-24.04-arm
     container: rust:latest
     steps:
@@ -27,3 +27,19 @@ jobs:
           apt update && apt upgrade -y && apt install -y lld
           cargo --version
       - run: make test
+
+
+  tests-wasm32:
+    runs-on: ubuntu-latest
+    container: rust:latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          apt update && apt upgrade -y && apt install -y lld curl xz-utils
+          echo PATH: $PATH
+          curl https://wasmtime.dev/install.sh -sSf | bash
+          ln -s ~/.wasmtime/bin/wasmtime /usr/local/bin/wasmtime
+          rustup target add wasm32-wasip1
+          cargo --version
+      - run: |
+          make test_wasm

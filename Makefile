@@ -14,16 +14,21 @@ check_all:
 	RUSTFLAGS="-C target-feature=-avx2" cargo check --target=x86_64-unknown-linux-gnu
 	RUSTFLAGS="-C target-feature=+avx2" cargo check --target=x86_64-unknown-linux-gnu
 
-# aarch64 assumes that NEON is always present
-	RUSTFLAGS="-C target-feature=+neon" cargo check --target=aarch64-unknown-linux-gnu
+	cargo check --target=aarch64-unknown-linux-gnu
 
-	RUSTFLAGS="-C target-feature=-simd128" cargo check --target=wasm32-unknown-unknown
-	RUSTFLAGS="-C target-feature=+simd128" cargo check --target=wasm32-unknown-unknown
+	RUSTFLAGS="-C target-feature=-simd128" cargo check --target=wasm32-wasip1
+	RUSTFLAGS="-C target-feature=+simd128" cargo check --target=wasm32-wasip1
 
 
 .PHONY: test
 test:
 	RUST_BACKTRACE=1 cargo test
+
+
+.PHONY: test_wasm
+test_wasm:
+	WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 RUSTFLAGS="-C target-feature=-simd128" cargo test -p chacha12 --target=wasm32-wasip1 -- --nocapture
+	WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 RUSTFLAGS="-C target-feature=+simd128" cargo test -p chacha12 --target=wasm32-wasip1 -- --nocapture
 
 
 .PHONY: bench

@@ -8,3 +8,8 @@ rustflags = ["-C", "link-args=-fuse-ld=lld", "-C", "target-cpu=native"]
 rustflags = ["-C", "link-args=-fuse-ld=lld", "-C", "target-cpu=native"]
 [target.aarch64-unknown-linux-musl]
 rustflags = ["-C", "link-args=-fuse-ld=lld", "-C", "target-cpu=native"]
+
+
+# to run WASM tests
+[target.wasm32-wasip1]
+runner = "wasmtime"
