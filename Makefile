@@ -23,7 +23,7 @@ check_all:
 
 .PHONY: test
 test:
-	cargo test
+	RUST_BACKTRACE=1 cargo test
 
 
 .PHONY: bench
