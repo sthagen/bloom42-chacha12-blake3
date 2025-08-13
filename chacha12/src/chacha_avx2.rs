@@ -1,10 +1,13 @@
+#[cfg(target_arch = "x86")]
+use std::arch::x86::*;
+#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 use crate::STATE_WORDS;
 
 // https://doc.rust-lang.org/stable/core/arch/x86_64/
 
-/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 256 / 32)
+/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 256 / 32 = 8)
 pub const SIMD_LANES: usize = 8;
 
 /// A 8-lane array with guaranteed 32-byte alignment.
@@ -13,8 +16,8 @@ pub const SIMD_LANES: usize = 8;
 #[repr(align(32))]
 struct AlignedU32x8([u32; SIMD_LANES]);
 
-// AVX2 supports operations on 16 256-bit vectors.
-// Each vector can be seen as 8 lanes, where each lane is 32-bit wide (8 * 32 = 356), allowing us to compute
+// AVX2 supports operations on 256-bit registers (vectors).
+// Each vector can be seen as 8 lanes, where each lane is 32-bit wide (8 * 32 = 256), allowing us to compute
 // 8 ChaCha blocks in parallel.
 // Thus, in a single 256-bit vector we will get the follwing state:
 // [ block1 (32-bits) || block2 (32-bits) || block3 (32-bits) || block4 (32-bits) || block5 (32-bits) ... ]

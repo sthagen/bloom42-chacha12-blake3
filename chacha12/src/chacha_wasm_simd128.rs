@@ -4,7 +4,7 @@ use crate::STATE_WORDS;
 
 // https://doc.rust-lang.org/stable/core/arch/wasm32
 
-/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 128 / 32)
+/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 128 / 32 = 4)
 pub const SIMD_LANES: usize = 4;
 
 pub fn chacha_wasm_simd128<const ROUNDS: usize>(

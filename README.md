@@ -13,7 +13,7 @@ Making it a great fit for everything from microcontrollers to huge servers.
 
 It was designed to be the only encryption algorithm you will ever need.
 
-> **⚠️ Warning ⚠️:** This is a preliminary release, use with caution.
+> **⚠️ Warning ⚠️:** This is a preliminary release, DO NOT USE IN PRODUCTION. The specification may change in the near future.
 
 
 ## Specification
@@ -47,10 +47,10 @@ chacha12-blake3 = "0.9"
 use chacha12_blake3::ChaCha12Blake3;
 
 fn main() {
-    // DON'T USE A ALL-ZERO KEY, THIS CODE IS FOR DEMONSTRATION ONLY
+    // OD NOT USE A ALL-ZERO KEY / NONCE, THIS CODE IS FOR DEMONSTRATION ONLY
     let key = [0u8; 32];
     let nonce = [0u8; 32];
-    // or with an u64 counter to encrypt up to 2^64 messages:
+    // or with an u64 counter to encrypt up to 2^64 messages with a single key:
     // let mut nonce = [0u8; 32];
     // nonce[..8].copy_from_slice(&counter.to_le_bytes());
 

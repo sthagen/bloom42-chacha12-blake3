@@ -5,14 +5,14 @@ fmt:
 
 .PHONY: check
 check:
-	RUSTFLAGS="-C target-feature=-avx2,-simd128" cargo check
+	RUSTFLAGS="-C target-feature=-avx2,-simd128,-avx512f" cargo check
 	cargo check
 
 # check for all supported targets and target features
 .PHONY: check_all
 check_all:
-	RUSTFLAGS="-C target-feature=-avx2" cargo check --target=x86_64-unknown-linux-gnu
-	RUSTFLAGS="-C target-feature=+avx2" cargo check --target=x86_64-unknown-linux-gnu
+	RUSTFLAGS="-C target-feature=-avx2,-avx512f" cargo check --target=x86_64-unknown-linux-gnu
+	RUSTFLAGS="-C target-feature=+avx2,+avx512f" cargo check --target=x86_64-unknown-linux-gnu
 
 	cargo check --target=aarch64-unknown-linux-gnu
 

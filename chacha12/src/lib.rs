@@ -1,15 +1,21 @@
-// aarch64 assumes that the NEON extension is always present
+// aarch64 assumes that NEON instructions are always present
 #[cfg(target_arch = "aarch64")]
 use crate::chacha_neon::chacha_neon;
 
 #[cfg(target_arch = "aarch64")]
 mod chacha_neon;
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64")))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
 mod chacha_avx2;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
 use chacha_avx2::chacha_avx2;
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+mod chacha_avx512;
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+use chacha_avx512::chacha_avx512;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 mod chacha_wasm_simd128;
@@ -24,10 +30,11 @@ const CONSTANT: [u32; 4] = [
     0x6b206574, // "te k"
 ];
 
+/// The number of 32-bit words that compose ChaCha's state
 const STATE_WORDS: usize = 16;
 
 pub struct ChaCha<const ROUNDS: usize> {
-    state: [u32; 16],
+    state: [u32; STATE_WORDS],
     counter: u64,
     last_keystream_block: [u8; 64],
     last_keystream_block_index: usize,
@@ -35,7 +42,7 @@ pub struct ChaCha<const ROUNDS: usize> {
 
 impl<const ROUNDS: usize> ChaCha<ROUNDS> {
     pub fn new(key: &[u8; 32], nonce: &[u8; 8]) -> ChaCha<ROUNDS> {
-        let mut state = [0u32; 16];
+        let mut state = [0u32; STATE_WORDS];
 
         // copy constant into the first 4 32-bit words
         state[..4].copy_from_slice(&CONSTANT);
@@ -70,24 +77,28 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
                 .zip(remaining_keystream)
                 .for_each(|(plaintext, keystream)| *plaintext ^= *keystream);
 
-            if plaintext.len() == remaining_keystream.len() {
-                self.last_keystream_block_index = 0;
-                return;
+            if plaintext.len() > remaining_keystream.len() {
+                plaintext = &mut plaintext[remaining_keystream.len()..];
             } else if plaintext.len() < remaining_keystream.len() {
                 self.last_keystream_block_index += plaintext.len();
                 return;
             } else {
-                // plaintext.len() > remaining_keystream.len()
-                plaintext = &mut plaintext[remaining_keystream.len()..];
-                self.last_keystream_block_index = plaintext.len() % 64;
+                // plaintext.len() == remaining_keystream.len()
+                self.last_keystream_block_index = 0;
+                return;
             }
-        } else {
-            self.last_keystream_block_index = plaintext.len() % 64;
         }
+        self.last_keystream_block_index = plaintext.len() % 64;
 
         #[cfg(target_arch = "aarch64")]
         if plaintext.len() >= 128 {
             self.counter = chacha_neon::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
+            return;
+        }
+
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+        if plaintext.len() >= 128 {
+            self.counter = chacha_avx512::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
             return;
         }
 
