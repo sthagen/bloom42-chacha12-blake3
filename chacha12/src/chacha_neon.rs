@@ -7,22 +7,6 @@ use crate::STATE_WORDS;
 /// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 128 / 32 = 4)
 pub const SIMD_LANES: usize = 4;
 
-/// optimized rotate_left for NEON
-macro_rules! rotate_left {
-    ($v:expr, 8) => {{
-        let mask_bytes = [3u8, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14];
-        let mask = vld1q_u8(mask_bytes.as_ptr());
-
-        $v = vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32($v), mask))
-    }};
-    ($v:expr, 16) => {
-        $v = vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32($v)))
-    };
-    ($v:expr, $r:literal) => {
-        $v = vorrq_u32(vshlq_n_u32($v, $r), vshrq_n_u32($v, 32 - $r))
-    };
-}
-
 // NEON instructions use 128-bit wide vectors, thus we compute 128 / 32 = 4 ChaCha blocks
 // in parallel.
 // Each vector can be seen as a 4 lanes, where each lane is 32-bit wide.
@@ -146,6 +130,22 @@ fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], ke
 
 #[inline(always)]
 fn quarter_round(state: &mut [uint32x4_t; 16], a: usize, b: usize, c: usize, d: usize) {
+    // optimized rotate_left for NEON
+    macro_rules! rotate_left {
+        ($v:expr, 8) => {{
+            let mask_bytes = [3u8, 0, 1, 2, 7, 4, 5, 6, 11, 8, 9, 10, 15, 12, 13, 14];
+            let mask = vld1q_u8(mask_bytes.as_ptr());
+
+            $v = vreinterpretq_u32_u8(vqtbl1q_u8(vreinterpretq_u8_u32($v), mask))
+        }};
+        ($v:expr, 16) => {
+            $v = vreinterpretq_u32_u16(vrev32q_u16(vreinterpretq_u16_u32($v)))
+        };
+        ($v:expr, $r:literal) => {
+            $v = vorrq_u32(vshlq_n_u32($v, $r), vshrq_n_u32($v, 32 - $r))
+        };
+    }
+
     unsafe {
         // a += b; d ^= a; d <<<= 16
         state[a] = vaddq_u32(state[a], state[b]);
