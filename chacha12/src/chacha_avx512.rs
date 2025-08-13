@@ -86,9 +86,11 @@ pub fn chacha_avx512<const ROUNDS: usize>(
         counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
     }
 
-    let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
-    let last_keystream_block_offset = last_keystream_block_index * 64;
-    last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
+    if input.len() % 64 != 0 {
+        let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
+        let last_keystream_block_offset = last_keystream_block_index * 64;
+        last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
+    }
 
     return counter;
 }

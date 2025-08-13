@@ -34,4 +34,3 @@ zeroize = ["dep:zeroize", "blake3/zeroize"]
 
 [dev-dependencies]
 hex = "0.4"
-rand = "0.9"

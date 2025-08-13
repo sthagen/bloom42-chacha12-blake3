@@ -36,6 +36,18 @@ const STATE_WORDS: usize = 16;
 pub struct ChaCha<const ROUNDS: usize> {
     state: [u32; STATE_WORDS],
     counter: u64,
+    /// ChaCha is a stream cipher that works with 64-byte blocks.
+    /// It means that
+    /// Thus calling multiple times `xor_keystream`:
+    /// xor_keystream(plaintext[0..3]), xor_keystream(plaintext[3..50]), xor_keystream(plaintext[50..150]);
+    /// Should be equal to calling it only once:
+    /// xor_keystream(plaintext[0..150]);
+    /// For that, we keep the last computed keystream block, as well as an index of where in the keystream
+    /// we were after completing the last call.
+    /// Then, when calling `xor_keystream` again, we first check if there is sone leftover form the last
+    /// keystream.
+    /// NOTE: the `last_keystream_block` is valid only if the previous call to `xor_keystream` had
+    /// an input.len() % 64 != 0
     last_keystream_block: [u8; 64],
     last_keystream_block_index: usize,
 }
@@ -404,8 +416,9 @@ Expected: {}",
             // thus:
             // cipher.xor_keystream(plaintext[0..10])
             // cipher.xor_keystream(plaintext[10..30])
+            // cipher.xor_keystream(plaintext[30..5])
             // should be equal to:
-            // cipher.xor_keystream(plaintext[0..30])
+            // cipher.xor_keystream(plaintext[0..35])
 
             let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
             cipher.xor_keystream(&mut plaintext);
