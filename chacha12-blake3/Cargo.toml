@@ -17,8 +17,9 @@ readme = "../README.md"
 path = "./chacha12_blake3.rs"
 
 [dependencies]
+chacha12 = { path = "../chacha12" }
+
 blake3 = { version = "1", default-features = false, features = ["neon", "wasm32_simd"] }
-chacha20 =  { version = "0.10.0-rc.0", features = ["legacy"] }
 constant_time_eq = "0.4"
 zeroize = { version = "1", features = ["simd", "derive"], optional = true }
 

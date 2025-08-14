@@ -1,14 +1,11 @@
 #![no_std]
 #![doc = include_str!("README.md")]
 
-use chacha20::{
-    ChaCha12,
-    cipher::{KeyIvInit, StreamCipher},
-};
+use chacha12::ChaCha;
 use constant_time_eq::constant_time_eq_32;
 
 #[cfg(feature = "zeroize")]
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
@@ -72,30 +69,13 @@ impl ChaCha12Blake3 {
 
     pub fn encrypt_in_place_detached(&self, nonce: &[u8; 32], plaintext: &mut [u8], aad: &[u8]) -> [u8; 32] {
         // encryptionKey = blake3::derive_key(context="...", ikm=key || nonce)
-        let mut encryption_key: [u8; 32] = blake3::Hasher::new_derive_key(ENCRYPTION_KDF_CONTEXT)
+        let encryption_key: [u8; 32] = blake3::Hasher::new_derive_key(ENCRYPTION_KDF_CONTEXT)
             .update(&self.key)
             .update(nonce)
             .finalize()
             .into();
 
-        // while the ChaCha12-BLAKE3 specification uses ChaCha12 with a 64-bit counter and a 64-bit nonce,
-        // like the original ChaCha20 by Daniel J. Bernstein, our current implementation unfortunately
-        // uses a 32-bit counter and a 96-bit nonce as specified in RFC 8439/
-        // That's why for now we use a 96-bit nonce where the first 4 bytes (32 bits) are fixed to 0
-        let mut chacha_ietf_nonce = [0u8; 12];
-        chacha_ietf_nonce[4..].copy_from_slice(&nonce[..8]);
-
-        // The current implementation uses a ChaCha12 with a 96-bit nonce and 32-bit counter,
-        // so we are limited to encrypt (64 * 2^32) - 64 bytes of data with a single (key, nonce) pair,
-        // which is around 256 GiB.
-        // This is unlikely to be an issue because the API requires the entire message to be in
-        // memory.
-        assert!(
-            plaintext.len() < ((64 * (1 << 32)) - 64),
-            "ChaCha12-BLAKE3 currently can't encrypt more than 256 GiB of data with a single (key, nonce) pair"
-        );
-
-        ChaCha12::new(&encryption_key.into(), &chacha_ietf_nonce.into()).apply_keystream(plaintext);
+        ChaCha::<12>::new(&encryption_key, &nonce[..8].try_into().unwrap()).xor_keystream(plaintext);
 
         let mut mac_hasher = blake3::Hasher::new_keyed(&self.authentication_key);
         mac_hasher.update(nonce);
@@ -106,7 +86,7 @@ impl ChaCha12Blake3 {
         let tag = mac_hasher.finalize();
 
         #[cfg(feature = "zeroize")]
-        encryption_key.zeroize();
+        Zeroizing::new(encryption_key).zeroize();
 
         return tag.into();
     }
@@ -131,21 +111,16 @@ impl ChaCha12Blake3 {
         }
 
         // encryptionKey = blake3::derive_key(context="...", ikm=key || nonce)
-        let mut encryption_key: [u8; 32] = blake3::Hasher::new_derive_key(ENCRYPTION_KDF_CONTEXT)
+        let encryption_key: [u8; 32] = blake3::Hasher::new_derive_key(ENCRYPTION_KDF_CONTEXT)
             .update(&self.key)
             .update(nonce)
             .finalize()
             .into();
 
-        // see `encrypt_in_place_detached` for why we currently use only the last 64 bits of a 96-bit nonce
-        // for ChaCha12
-        let mut chacha_ietf_nonce = [0u8; 12];
-        chacha_ietf_nonce[4..].copy_from_slice(&nonce[..8]);
-
-        ChaCha12::new(&encryption_key.into(), &chacha_ietf_nonce.into()).apply_keystream(ciphertext);
+        ChaCha::<12>::new(&encryption_key, &nonce[..8].try_into().unwrap()).xor_keystream(ciphertext);
 
         #[cfg(feature = "zeroize")]
-        encryption_key.zeroize();
+        Zeroizing::new(encryption_key).zeroize();
 
         return Ok(());
     }

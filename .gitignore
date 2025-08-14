@@ -49,4 +49,4 @@ node_modules/
 # Rust
 target/
 
-#chacha12/Cargo.lock
+chacha12/Cargo.lock
