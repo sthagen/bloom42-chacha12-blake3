@@ -1,3 +1,5 @@
+#![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
+
 // aarch64 assumes that NEON instructions are always present
 #[cfg(target_arch = "aarch64")]
 use crate::chacha_neon::chacha_neon;
@@ -5,16 +7,28 @@ use crate::chacha_neon::chacha_neon;
 #[cfg(target_arch = "aarch64")]
 mod chacha_neon;
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
+#[cfg(any(
+    all(target_arch = "x86_64", feature = "std"),
+    all(target_arch = "x86_64", target_feature = "avx2")
+))]
 mod chacha_avx2;
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
+#[cfg(any(
+    all(target_arch = "x86_64", feature = "std"),
+    all(target_arch = "x86_64", target_feature = "avx2")
+))]
 use chacha_avx2::chacha_avx2;
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[cfg(any(
+    all(target_arch = "x86_64", feature = "std"),
+    all(target_arch = "x86_64", target_feature = "avx512f")
+))]
 mod chacha_avx512;
 
-#[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
+#[cfg(any(
+    all(target_arch = "x86_64", feature = "std"),
+    all(target_arch = "x86_64", target_feature = "avx512f")
+))]
 use chacha_avx512::chacha_avx512;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
@@ -22,6 +36,9 @@ mod chacha_wasm_simd128;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use chacha_wasm_simd128::chacha_wasm_simd128;
+
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const CONSTANT: [u32; 4] = [
     0x61707865, // "expa"
@@ -33,6 +50,7 @@ const CONSTANT: [u32; 4] = [
 /// The number of 32-bit words that compose ChaCha's state
 const STATE_WORDS: usize = 16;
 
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct ChaCha<const ROUNDS: usize> {
     state: [u32; STATE_WORDS],
     counter: u64,
@@ -47,7 +65,8 @@ pub struct ChaCha<const ROUNDS: usize> {
     /// Then, when calling `xor_keystream` again, we first check if there is sone leftover form the last
     /// keystream.
     /// NOTE: the `last_keystream_block` is valid only if the previous call to `xor_keystream` had
-    /// an input.len() % 64 != 0
+    /// an input.len() % 64 != 0.
+    /// Otherwise there is no need to preserve the last keystream block.
     last_keystream_block: [u8; 64],
     last_keystream_block_index: usize,
 }
@@ -68,19 +87,21 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
         state[14] = u32::from_le_bytes(nonce[0..4].try_into().unwrap());
         state[15] = u32::from_le_bytes(nonce[4..8].try_into().unwrap());
 
-        ChaCha {
+        return ChaCha {
             state,
             counter: 0,
             last_keystream_block: [0u8; 64],
             last_keystream_block_index: 0,
-        }
+        };
     }
 
+    /// XOR `plaintext` with the ChaCha keystream.
     pub fn xor_keystream(&mut self, mut plaintext: &mut [u8]) {
         if plaintext.len() == 0 {
             return;
         }
 
+        // first, consume the keystream leftover, if any
         if self.last_keystream_block_index != 0 {
             let remaining_keystream = &self.last_keystream_block[self.last_keystream_block_index..];
 
@@ -102,21 +123,10 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
         }
         self.last_keystream_block_index = plaintext.len() % 64;
 
+        // aarch64 assumes that NEON is always available
         #[cfg(target_arch = "aarch64")]
         if plaintext.len() >= 128 {
             self.counter = chacha_neon::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
-            return;
-        }
-
-        #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
-        if plaintext.len() >= 128 {
-            self.counter = chacha_avx512::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
-            return;
-        }
-
-        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "avx2"))]
-        if plaintext.len() >= 128 {
-            self.counter = chacha_avx2::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
             return;
         }
 
@@ -127,11 +137,49 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
             return;
         }
 
+        // runtime detection of CPU features for x86 and x86_64 when the "std" feature is enabled
+        #[cfg(feature = "std")]
+        {
+            #[cfg(target_arch = "x86_64")]
+            if is_x86_feature_detected!("avx512f") {
+                self.counter =
+                    chacha_avx512::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
+                return;
+            }
+
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            if is_x86_feature_detected!("avx2") {
+                self.counter =
+                    chacha_avx2::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
+                return;
+            }
+        }
+
+        // compile-time CPU detection
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx512f", not(feature = "std")))]
+        if plaintext.len() >= 128 {
+            self.counter = chacha_avx512::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
+            return;
+        }
+
+        #[cfg(all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "avx2",
+            not(feature = "std")
+        ))]
+        if plaintext.len() >= 128 {
+            self.counter = chacha_avx2::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
+            return;
+        }
+
         self.counter = chacha_generic::<ROUNDS>(self.state, self.counter, plaintext, &mut self.last_keystream_block);
     }
 
+    /// Set the ChaCha counter (words 12 and 13). It can be used to move forward and backward in the
+    /// keystream.
     pub fn set_counter(&mut self, counter: u64) {
         self.counter = counter;
+        // setting the counter "realigns" the keystream to the beginning of a block.
         self.last_keystream_block_index = 0;
     }
 }
@@ -197,7 +245,9 @@ fn chacha_generic<const ROUNDS: usize>(
         counter = counter.wrapping_add(1);
     }
 
-    last_keystream_block.copy_from_slice(&keystream);
+    if plaintext.len() % 64 != 0 {
+        last_keystream_block.copy_from_slice(&keystream);
+    }
 
     return counter;
 }

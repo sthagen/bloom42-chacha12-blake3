@@ -5,10 +5,21 @@ edition = "2024"
 description = "Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform"
 repository = "https://github.com/bloom42/chacha12-blake3"
 license = "MIT"
-keywords = ["cryptography", "chacha20", "blake3", "encryption", "chacha12", "simd", "wasm", "chacha", "webassembly"]
-categories = ["cryptography", "wasm"]
+keywords = ["cryptography", "chacha20", "encryption", "chacha12", "simd", "wasm", "chacha", "webassembly"]
+categories = ["cryptography", "wasm", "simd"]
+
+[features]
+default = ["std", "zeroize"]
+
+# enable runtime detection of CPU features (SIMD instructions)
+std = []
+
+# erase sensitive secrets from memory
+zeroize = ["dep:zeroize"]
 
 [dependencies]
+zeroize = { version = "1", features = ["simd", "derive"], optional = true }
+
 
 [dev-dependencies]
 hex = "0.4"

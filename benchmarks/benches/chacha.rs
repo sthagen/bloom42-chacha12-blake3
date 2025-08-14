@@ -3,7 +3,7 @@ use chacha20::{ChaCha12, KeyIvInit, cipher::StreamCipher};
 use criterion::*;
 
 fn bench(c: &mut Criterion) {
-    for n in [64, 2000, 64 * 1000, 1000 * 1000, 10 * 1000 * 1000] {
+    for n in [64, 2048, 64 * 1024, 1024 * 1024, 10 * 1024 * 1024] {
         let mut group = c.benchmark_group(format!("{}", n));
         let mut plaintext = vec![0u8; n];
 

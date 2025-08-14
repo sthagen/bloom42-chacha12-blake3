@@ -48,3 +48,5 @@ node_modules/
 
 # Rust
 target/
+
+#chacha12/Cargo.lock

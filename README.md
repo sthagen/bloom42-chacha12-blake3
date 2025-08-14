@@ -47,7 +47,7 @@ chacha12-blake3 = "0.9"
 use chacha12_blake3::ChaCha12Blake3;
 
 fn main() {
-    // OD NOT USE A ALL-ZERO KEY / NONCE, THIS CODE IS FOR DEMONSTRATION ONLY
+    // DO NOT USE A ALL-ZERO KEY / NONCE, THIS CODE IS FOR DEMONSTRATION ONLY
     let key = [0u8; 32];
     let nonce = [0u8; 32];
     // or with an u64 counter to encrypt up to 2^64 messages with a single key:
