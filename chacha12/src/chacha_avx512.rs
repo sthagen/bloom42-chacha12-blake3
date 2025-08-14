@@ -1,6 +1,6 @@
 use std::arch::x86_64::*;
 
-use crate::STATE_WORDS;
+use crate::{STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
 
 // https://doc.rust-lang.org/stable/core/arch/x86_64
 // https://en.wikipedia.org/wiki/AVX-512
@@ -25,12 +25,12 @@ struct AlignedU32x16([u32; SIMD_LANES]);
 // then we perform the normal ChaCha operations on these vectors, meaning that we compute
 // 16 ChaCha blocks in parallel for every operation on these vectors.
 pub fn chacha_avx512<const ROUNDS: usize>(
-    state: [u32; 16],
-    mut counter: u64,
+    state: &mut [u32; 16],
     input: &mut [u8],
     last_keystream_block: &mut [u8; 64],
-) -> u64 {
+) {
     let mut keystream = [0u8; SIMD_LANES * 64];
+    let mut counter = extract_counter_from_state(state);
 
     let mut initial_state: [__m512i; 16] = unsafe {
         [
@@ -86,13 +86,13 @@ pub fn chacha_avx512<const ROUNDS: usize>(
         counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
     }
 
+    inject_counter_into_state(state, counter);
+
     if input.len() % 64 != 0 {
         let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
         let last_keystream_block_offset = last_keystream_block_index * 64;
         last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
     }
-
-    return counter;
 }
 
 /// Compute 16 64-byte ChaCha blocks in parallel using AVX-512 vectors.

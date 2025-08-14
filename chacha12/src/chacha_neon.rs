@@ -1,6 +1,6 @@
 use core::arch::aarch64::*;
 
-use crate::STATE_WORDS;
+use crate::{STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
 
 // https://doc.rust-lang.org/stable/core/arch/aarch64
 
@@ -14,13 +14,9 @@ pub const SIMD_LANES: usize = 4;
 // [ block1 (32-bits) || block2 (32-bits) || block3 (32-bits) || block4 (32-bits) ]
 // then we perform the normal ChaCha operations on these vectors, meaning that we compute
 // 4 ChaCha blocks in parallel for every operation on these vectors.
-pub fn chacha_neon<const ROUNDS: usize>(
-    state: [u32; 16],
-    mut counter: u64,
-    input: &mut [u8],
-    last_keystream_block: &mut [u8; 64],
-) -> u64 {
+pub fn chacha_neon<const ROUNDS: usize>(state: &mut [u32; 16], input: &mut [u8], last_keystream_block: &mut [u8; 64]) {
     let mut keystream = [0u8; SIMD_LANES * 64];
+    let mut counter = extract_counter_from_state(state);
 
     // process 4 blocks of 64 bytes (4 * 16) in parallel
     let mut state_simd: [uint32x4_t; STATE_WORDS] = unsafe {
@@ -75,13 +71,13 @@ pub fn chacha_neon<const ROUNDS: usize>(
         counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
     }
 
+    inject_counter_into_state(state, counter);
+
     if input.len() % 64 != 0 {
         let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
         let last_keystream_block_offset = last_keystream_block_index * 64;
         last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
     }
-
-    return counter;
 }
 
 /// Compute 4 64-byte ChaCha blocks in parallel using NEON vectors.

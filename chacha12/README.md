@@ -5,6 +5,12 @@ Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform.
 > **⚠️ Warning ⚠️:** This is a preliminary release, DO NOT USE IN PRODUCTION.
 
 
+`Cargo.toml`
+```toml
+[dependencies]
+chacha12 = "0.1"
+```
+
 ```rust
 use chacha12::ChaCha;
 

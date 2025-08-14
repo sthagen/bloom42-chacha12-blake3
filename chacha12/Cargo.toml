@@ -1,5 +1,6 @@
 [package]
 name = "chacha12"
+# Also update README
 version = "0.1.0"
 edition = "2024"
 description = "Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform"
