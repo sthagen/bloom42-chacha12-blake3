@@ -1,6 +1,6 @@
 use std::arch::x86_64::*;
 
-use crate::{STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
+use crate::{BLOCK_SIZE, STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
 
 // https://doc.rust-lang.org/stable/core/arch/x86_64
 // https://en.wikipedia.org/wiki/AVX-512
@@ -25,14 +25,14 @@ struct AlignedU32x16([u32; SIMD_LANES]);
 // then we perform the normal ChaCha operations on these vectors, meaning that we compute
 // 16 ChaCha blocks in parallel for every operation on these vectors.
 pub fn chacha_avx512<const ROUNDS: usize>(
-    state: &mut [u32; 16],
+    state: &mut [u32; STATE_WORDS],
     input: &mut [u8],
-    last_keystream_block: &mut [u8; 64],
+    last_keystream_block: &mut [u8; BLOCK_SIZE],
 ) {
-    let mut keystream = [0u8; SIMD_LANES * 64];
     let mut counter = extract_counter_from_state(state);
+    let mut keystream = [0u8; SIMD_LANES * BLOCK_SIZE];
 
-    let mut initial_state: [__m512i; 16] = unsafe {
+    let mut initial_state: [__m512i; STATE_WORDS] = unsafe {
         [
             // constant
             _mm512_set1_epi32(state[0] as i32),
@@ -58,7 +58,7 @@ pub fn chacha_avx512<const ROUNDS: usize>(
     };
 
     // process input by chunks of 16 * 64 bytes
-    for input_blocks in input.chunks_mut(64 * SIMD_LANES) {
+    for input_blocks in input.chunks_mut(BLOCK_SIZE * SIMD_LANES) {
         // inject counter (uint64 little-endian) as two 32-bit little-endian words for each lane
         // e.g for one 512-bit vector with 16 32-bit lanes: [counter, counter + 1, counter + 2, counter + 3...]
         let mut counter_lane_low = AlignedU32x16([0u32; SIMD_LANES]);
@@ -83,15 +83,16 @@ pub fn chacha_avx512<const ROUNDS: usize>(
             .zip(keystream)
             .for_each(|(plaintext, keystream)| *plaintext ^= keystream);
 
-        counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
+        counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(BLOCK_SIZE as u64));
     }
 
     inject_counter_into_state(state, counter);
 
-    if input.len() % 64 != 0 {
-        let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
-        let last_keystream_block_offset = last_keystream_block_index * 64;
-        last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
+    if input.len() % BLOCK_SIZE != 0 {
+        let last_keystream_block_index = ((input.len() - 1) / BLOCK_SIZE) % SIMD_LANES;
+        let last_keystream_block_offset = last_keystream_block_index * BLOCK_SIZE;
+        last_keystream_block
+            .copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + BLOCK_SIZE]);
     }
 }
 
@@ -99,7 +100,10 @@ pub fn chacha_avx512<const ROUNDS: usize>(
 /// The keystream is the 16 64-byte blocks computed in parallel.
 /// [ block1 (64 bytes) || block2 (64 bytes) || block3 (64 bytes) || block4 (64 bytes) ... ]
 #[inline(always)]
-fn chacha20_avx512_16blocks<const ROUNDS: usize>(initial_state: [__m512i; 16], keystream: &mut [u8; SIMD_LANES * 64]) {
+fn chacha20_avx512_16blocks<const ROUNDS: usize>(
+    initial_state: [__m512i; STATE_WORDS],
+    keystream: &mut [u8; SIMD_LANES * BLOCK_SIZE],
+) {
     let keystream_ptr = keystream.as_mut_ptr();
 
     unsafe {

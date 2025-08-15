@@ -70,8 +70,9 @@ fn main() {
 
 | Feature | Default? | Description |
 | --------| ---------| ----------- |
-| `alloc` | ✓ | Enables the `encrypt` / `decrypt` APIs that allocate memory |
-| `zeroize` | ✓ | Enables [`zeroize`](https://crates.io/crates/zeroize) to erase sensitive secrets from memory |
+| `std` | ✓ |  Enables use of the standard library such as runtime SIMD detection. Enabling `std` automatically enables `alloc`.  |
+| `alloc` | ✓ | Enables the `encrypt` / `decrypt` APIs that allocate memory. |
+| `zeroize` | ✓ | Enables [`zeroize`](https://crates.io/crates/zeroize) to erase sensitive secrets from memory. |
 
 
 ## License

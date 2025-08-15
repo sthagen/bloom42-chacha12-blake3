@@ -43,6 +43,13 @@ use chacha_avx512::chacha_avx512;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+/// The number of 32-bit words that compose ChaCha's state.
+const STATE_WORDS: usize = 16;
+
+/// The size of a ChaCha block in bytes which is the size of the state in bytes
+const BLOCK_SIZE: usize = 64;
+
+/// The "sigma" constant which is the value of the first row of ChaCha's state.
 const CONSTANT: [u32; 4] = [
     0x61707865, // "expa"
     0x3320646e, // "nd 3"
@@ -50,14 +57,12 @@ const CONSTANT: [u32; 4] = [
     0x6b206574, // "te k"
 ];
 
-/// The number of 32-bit words that compose ChaCha's state
-const STATE_WORDS: usize = 16;
-
 #[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct ChaCha<const ROUNDS: usize> {
     state: [u32; STATE_WORDS],
     /// ChaCha is a stream cipher that works with 64-byte blocks.
-    /// It means that
+    /// It means that consumers of this packages should be able to call `xor_keystream` multiple
+    /// times even if there input is not aligned with ChaCha blocks.
     /// Thus calling multiple times `xor_keystream`:
     /// xor_keystream(plaintext[0..3]), xor_keystream(plaintext[3..50]), xor_keystream(plaintext[50..150]);
     /// Should be equal to calling it only once:
@@ -69,7 +74,7 @@ pub struct ChaCha<const ROUNDS: usize> {
     /// NOTE: the `last_keystream_block` is valid only if the previous call to `xor_keystream` had
     /// an input.len() % 64 != 0.
     /// Otherwise there is no need to preserve the last keystream block.
-    last_keystream_block: [u8; 64],
+    last_keystream_block: [u8; BLOCK_SIZE],
     last_keystream_block_index: usize,
 }
 
@@ -95,7 +100,7 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
 
         return ChaCha {
             state,
-            last_keystream_block: [0u8; 64],
+            last_keystream_block: [0u8; BLOCK_SIZE],
             last_keystream_block_index: 0,
         };
     }
@@ -126,7 +131,7 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
                 return;
             }
         }
-        self.last_keystream_block_index = plaintext.len() % 64;
+        self.last_keystream_block_index = plaintext.len() % BLOCK_SIZE;
 
         // aarch64 assumes that NEON is always available
         #[cfg(target_arch = "aarch64")]
@@ -189,15 +194,15 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
 #[inline]
 fn chacha_generic<const ROUNDS: usize>(
     mut state: &mut [u32; STATE_WORDS],
-    last_keystream_block: &mut [u8; 64],
+    last_keystream_block: &mut [u8; BLOCK_SIZE],
     plaintext: &mut [u8],
 ) {
-    let mut keystream = [0u8; 64];
+    let mut keystream = [0u8; BLOCK_SIZE];
     let keystream_ptr = keystream.as_mut_ptr();
     let mut counter = extract_counter_from_state(state);
 
     // process the input by blocks of 64 bytes
-    for plaintext_block in plaintext.chunks_mut(64) {
+    for plaintext_block in plaintext.chunks_mut(BLOCK_SIZE) {
         inject_counter_into_state(&mut state, counter);
 
         // prepare temporary (working) state
@@ -247,7 +252,7 @@ fn chacha_generic<const ROUNDS: usize>(
 
     inject_counter_into_state(state, counter);
 
-    if plaintext.len() % 64 != 0 {
+    if plaintext.len() % BLOCK_SIZE != 0 {
         last_keystream_block.copy_from_slice(&keystream);
     }
 }

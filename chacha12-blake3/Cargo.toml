@@ -17,20 +17,18 @@ readme = "../README.md"
 path = "./chacha12_blake3.rs"
 
 [dependencies]
-chacha12 = { path = "../chacha12" }
+chacha12 = { path = "../chacha12", default-features = false }
 
 blake3 = { version = "1", default-features = false, features = ["neon", "wasm32_simd"] }
 constant_time_eq = "0.4"
 zeroize = { version = "1", features = ["simd", "derive"], optional = true }
 
 [features]
-default = ["alloc", "zeroize"]
+default = ["std", "zeroize"]
 
-# the alloc feature enables the `encrypt` and `decrypt` APIs
 alloc = ["zeroize?/alloc"]
-
-# erase sensitive secrets from memory
-zeroize = ["dep:zeroize", "blake3/zeroize"]
+std = ["alloc", "chacha12/std"]
+zeroize = ["dep:zeroize", "blake3/zeroize", "chacha12/zeroize"]
 
 
 [dev-dependencies]

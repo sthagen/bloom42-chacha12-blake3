@@ -1,6 +1,6 @@
 use core::arch::aarch64::*;
 
-use crate::{STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
+use crate::{BLOCK_SIZE, STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
 
 // https://doc.rust-lang.org/stable/core/arch/aarch64
 
@@ -14,9 +14,13 @@ pub const SIMD_LANES: usize = 4;
 // [ block1 (32-bits) || block2 (32-bits) || block3 (32-bits) || block4 (32-bits) ]
 // then we perform the normal ChaCha operations on these vectors, meaning that we compute
 // 4 ChaCha blocks in parallel for every operation on these vectors.
-pub fn chacha_neon<const ROUNDS: usize>(state: &mut [u32; 16], input: &mut [u8], last_keystream_block: &mut [u8; 64]) {
-    let mut keystream = [0u8; SIMD_LANES * 64];
+pub fn chacha_neon<const ROUNDS: usize>(
+    state: &mut [u32; STATE_WORDS],
+    input: &mut [u8],
+    last_keystream_block: &mut [u8; BLOCK_SIZE],
+) {
     let mut counter = extract_counter_from_state(state);
+    let mut keystream = [0u8; SIMD_LANES * BLOCK_SIZE];
 
     // process 4 blocks of 64 bytes (4 * 16) in parallel
     let mut state_simd: [uint32x4_t; STATE_WORDS] = unsafe {
@@ -44,7 +48,7 @@ pub fn chacha_neon<const ROUNDS: usize>(state: &mut [u32; 16], input: &mut [u8],
         ]
     };
 
-    for input_blocks in input.chunks_mut(64 * SIMD_LANES) {
+    for input_blocks in input.chunks_mut(BLOCK_SIZE * SIMD_LANES) {
         // inject counters
         // TODO: there should be a better / faster way
         let mut counter_lane_low = [0u32; SIMD_LANES];
@@ -68,21 +72,25 @@ pub fn chacha_neon<const ROUNDS: usize>(state: &mut [u32; 16], input: &mut [u8],
             .zip(keystream)
             .for_each(|(plaintext, keystream)| *plaintext ^= keystream);
 
-        counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(64));
+        counter = counter.wrapping_add((input_blocks.len() as u64).div_ceil(BLOCK_SIZE as u64));
     }
 
     inject_counter_into_state(state, counter);
 
-    if input.len() % 64 != 0 {
-        let last_keystream_block_index = ((input.len() - 1) / 64) % SIMD_LANES;
-        let last_keystream_block_offset = last_keystream_block_index * 64;
-        last_keystream_block.copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + 64]);
+    if input.len() % BLOCK_SIZE != 0 {
+        let last_keystream_block_index = ((input.len() - 1) / BLOCK_SIZE) % SIMD_LANES;
+        let last_keystream_block_offset = last_keystream_block_index * BLOCK_SIZE;
+        last_keystream_block
+            .copy_from_slice(&keystream[last_keystream_block_offset..last_keystream_block_offset + BLOCK_SIZE]);
     }
 }
 
 /// Compute 4 64-byte ChaCha blocks in parallel using NEON vectors.
 #[inline(always)]
-fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], keystream: &mut [u8; SIMD_LANES * 64]) {
+fn chacha_neon_4blocks<const ROUNDS: usize>(
+    state: [uint32x4_t; STATE_WORDS],
+    keystream: &mut [u8; SIMD_LANES * BLOCK_SIZE],
+) {
     let keystream_ptr = keystream.as_mut_ptr();
 
     // tmp_state is the "working state" where we perform the ChaCha operations
@@ -127,7 +135,7 @@ fn chacha_neon_4blocks<const ROUNDS: usize>(state: [uint32x4_t; STATE_WORDS], ke
 }
 
 #[inline(always)]
-fn quarter_round(state: &mut [uint32x4_t; 16], a: usize, b: usize, c: usize, d: usize) {
+fn quarter_round(state: &mut [uint32x4_t; STATE_WORDS], a: usize, b: usize, c: usize, d: usize) {
     // optimized rotate_left for NEON
     macro_rules! rotate_left {
         ($v:expr, 8) => {{
