@@ -128,7 +128,7 @@ fn chacha_neon_4blocks<const ROUNDS: usize>(
             // keystream[(block * STATE_WORDS) + word_index] = tmp[block].to_le();
             let byte_offset = (block * STATE_WORDS * 4) + (word_index * 4);
             unsafe {
-                std::ptr::copy_nonoverlapping(lanes[block].to_le_bytes().as_ptr(), keystream_ptr.add(byte_offset), 4);
+                core::ptr::copy_nonoverlapping(lanes[block].to_le_bytes().as_ptr(), keystream_ptr.add(byte_offset), 4);
             }
         }
     }

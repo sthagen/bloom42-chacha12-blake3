@@ -149,7 +149,7 @@ fn chacha20_wasm_4blocks<const ROUNDS: usize>(
             // each lane is a 32-bit little-endian word
             for block in 0..SIMD_LANES {
                 let byte_offset = (block * STATE_WORDS * 4) + (word_index * 4);
-                std::ptr::copy_nonoverlapping(lanes[block].to_le_bytes().as_ptr(), keystream_ptr.add(byte_offset), 4);
+                core::ptr::copy_nonoverlapping(lanes[block].to_le_bytes().as_ptr(), keystream_ptr.add(byte_offset), 4);
             }
         }
     }

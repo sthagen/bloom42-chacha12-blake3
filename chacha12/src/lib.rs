@@ -1,3 +1,4 @@
+#![no_std]
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 
 // aarch64 assumes that NEON instructions are always present
@@ -233,7 +234,7 @@ fn chacha_generic<const ROUNDS: usize>(
 
             // then we serialize the keystream
             unsafe {
-                std::ptr::copy_nonoverlapping(
+                core::ptr::copy_nonoverlapping(
                     tmp_state[word_index].to_le_bytes().as_ptr(),
                     keystream_ptr.add(word_index * 4),
                     4,
@@ -294,6 +295,8 @@ fn inject_counter_into_state(state: &mut [u32; STATE_WORDS], counter: u64) {
 #[cfg(test)]
 mod test {
     use crate::ChaCha;
+    extern crate alloc;
+    use alloc::{vec, vec::Vec};
 
     struct Test {
         key: [u8; 32],

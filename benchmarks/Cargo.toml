@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dev-dependencies]
-chacha12 = { path = "../chacha12" }
-
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+chacha12 = { path = "../chacha12", default-features = false }
+chacha12-blake3 = { path = "../chacha12-blake3", default-features = false }
 
 aes-gcm = { version = "0.10" }
 chacha20 = { version = "0.10.0-rc.0", features = ["legacy"] }
-chacha12-blake3 = { path = "../chacha12-blake3", default-features = false }
 chacha20poly1305 = { version = "0.10" }
 
 [[bench]]

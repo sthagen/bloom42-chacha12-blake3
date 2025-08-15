@@ -1,4 +1,4 @@
-use std::arch::x86_64::*;
+use core::arch::x86_64::*;
 
 use crate::{BLOCK_SIZE, STATE_WORDS, extract_counter_from_state, inject_counter_into_state};
 
@@ -164,7 +164,7 @@ fn chacha20_avx512_16blocks<const ROUNDS: usize>(
             for block in 0..SIMD_LANES {
                 let word = lanes.0[block].to_le_bytes();
                 let byte_offset = (block * STATE_WORDS * 4) + (word_index * 4);
-                std::ptr::copy_nonoverlapping(word.as_ptr(), keystream_ptr.add(byte_offset), 4);
+                core::ptr::copy_nonoverlapping(word.as_ptr(), keystream_ptr.add(byte_offset), 4);
             }
         }
     }
