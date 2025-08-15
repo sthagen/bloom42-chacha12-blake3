@@ -125,3 +125,53 @@ impl ChaCha12Blake3 {
         return Ok(());
     }
 }
+
+pub mod v2 {
+    use chacha12::ChaCha;
+    #[cfg(feature = "zeroize")]
+    use zeroize::{Zeroize, ZeroizeOnDrop};
+
+    #[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
+    pub struct ChaCha12Blake3 {
+        key: [u8; 32],
+    }
+
+    impl ChaCha12Blake3 {
+        pub fn new(key: [u8; 32]) -> Self {
+            return ChaCha12Blake3 { key };
+        }
+
+        pub fn encrypt_in_place_detached(&self, nonce: &[u8; 24], plaintext: &mut [u8], aad: &[u8]) -> [u8; 32] {
+            // with ChaCha12(key, counter, nonce)
+            // chacha12_kdf = ChaCha12(key, nonce[8..16].to_little_endian_uint64(),  nonce[16..24]);
+            let mut chacha_kdf = ChaCha::<12>::new(&self.key, &nonce[16..].try_into().unwrap());
+            chacha_kdf.set_counter(u64::from_le_bytes(nonce[8..16].try_into().unwrap()));
+
+            // kdf_out = chacha12_kdf(0x00 * 64)
+            let mut kdf_out = [0u8; 64];
+            ChaCha::<12>::new(&self.key.into(), &nonce[..8].try_into().unwrap()).xor_keystream(&mut kdf_out);
+
+            // encryption_key = kdf_out[0..32]
+            // authentication_key = kdf_out[32..64]
+            let encryption_key: [u8; 32] = kdf_out[..32].try_into().unwrap();
+            let authentication_key: [u8; 32] = kdf_out[32..].try_into().unwrap();
+
+            // ciphertext = ChaCha12(key, 0,  nonce[0..8]);
+            ChaCha::<12>::new(&encryption_key, &nonce[..8].try_into().unwrap()).xor_keystream(plaintext);
+
+            // mac = BLAKE3.keyed(authentication_key, nonce || aad || aad.len_uint64().to_le_bytes() || plaintext || plaintext.len_uint64().to_le_bytes())
+            let mut mac_hasher = blake3::Hasher::new_keyed(&authentication_key);
+            mac_hasher.update(nonce);
+            mac_hasher.update(aad);
+            mac_hasher.update(&(aad.len() as u64).to_le_bytes());
+            mac_hasher.update(&plaintext);
+            mac_hasher.update(&(plaintext.len() as u64).to_le_bytes());
+            let tag = mac_hasher.finalize();
+
+            #[cfg(feature = "zeroize")]
+            kdf_out.zeroize();
+
+            return tag.into();
+        }
+    }
+}
