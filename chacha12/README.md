@@ -24,7 +24,7 @@ chacha12 = "0.1"
 ```
 
 ```rust
-use chacha12::ChaCha;
+use chacha12::ChaCha12;
 
 fn main() {
     // DO NOT USE A ALL-ZERO KEY / NONCE, THIS CODE IS FOR DEMONSTRATION ONLY
@@ -33,7 +33,7 @@ fn main() {
 
     let mut message = b"Hello World!".to_vec();
 
-    let mut cipher = ChaCha::<12>::new(&key, &nonce);
+    let mut cipher = ChaCha12::new(&key, &nonce);
     cipher.xor_keystream(&mut message);
 }
 ```

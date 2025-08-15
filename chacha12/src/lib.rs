@@ -58,6 +58,10 @@ const CONSTANT: [u32; 4] = [
     0x6b206574, // "te k"
 ];
 
+pub type ChaCha8 = ChaCha<8>;
+pub type ChaCha12 = ChaCha<12>;
+pub type ChaCha20 = ChaCha<20>;
+
 #[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct ChaCha<const ROUNDS: usize> {
     state: [u32; STATE_WORDS],
@@ -294,7 +298,7 @@ fn inject_counter_into_state(state: &mut [u32; STATE_WORDS], counter: u64) {
 
 #[cfg(test)]
 mod test {
-    use crate::ChaCha;
+    use crate::{ChaCha8, ChaCha12, ChaCha20};
 
     struct Test {
         key: [u8; 32],
@@ -449,7 +453,7 @@ f39c6402c42234e32a356b3e764312a6\
         ];
 
         for (i, test) in tests.into_iter().enumerate() {
-            let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+            let mut cipher = ChaCha20::new(&test.key, &test.nonce);
             cipher.set_counter(test.initial_counter);
 
             let mut plaintext = test.plaintext.clone();
@@ -465,7 +469,7 @@ Expected ciphertext: {}",
                 hex::encode(&test.expected_ciphertext),
             );
 
-            let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+            let mut cipher = ChaCha20::new(&test.key, &test.nonce);
             cipher.set_counter(test.initial_counter);
             cipher.xor_keystream(&mut plaintext);
 
@@ -487,12 +491,12 @@ Expected: {}",
             // should be equal to:
             // cipher.xor_keystream(plaintext[0..35])
 
-            let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+            let mut cipher = ChaCha20::new(&test.key, &test.nonce);
             cipher.xor_keystream(&mut plaintext);
             for n in 0..10 {
                 let mut partial_plaintext: Vec<u8> = test.plaintext.clone();
 
-                let mut cipher = ChaCha::<20>::new(&test.key, &test.nonce);
+                let mut cipher = ChaCha20::new(&test.key, &test.nonce);
                 cipher.xor_keystream(&mut partial_plaintext[..n]);
                 cipher.xor_keystream(&mut partial_plaintext[n..]);
 
@@ -518,7 +522,7 @@ Expected: {}",
         ];
 
         let mut buffer = [0u8; 100];
-        ChaCha::<12>::new(key, nonce).xor_keystream(&mut buffer);
+        ChaCha12::new(key, nonce).xor_keystream(&mut buffer);
 
         assert_eq!(
             buffer,
@@ -542,7 +546,7 @@ Expected: {}",
         let nonce = &[0xa1, 0x4a, 0x11, 0x68, 0x27, 0x1d, 0x45, 0x9b];
 
         let mut buffer = [0u8; 100];
-        ChaCha::<8>::new(key, nonce).xor_keystream(&mut buffer);
+        ChaCha8::new(key, nonce).xor_keystream(&mut buffer);
 
         assert_eq!(
             buffer,
