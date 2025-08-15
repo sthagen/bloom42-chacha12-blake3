@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 
 // aarch64 assumes that NEON instructions are always present
@@ -295,8 +295,6 @@ fn inject_counter_into_state(state: &mut [u32; STATE_WORDS], counter: u64) {
 #[cfg(test)]
 mod test {
     use crate::ChaCha;
-    extern crate alloc;
-    use alloc::{vec, vec::Vec};
 
     struct Test {
         key: [u8; 32],

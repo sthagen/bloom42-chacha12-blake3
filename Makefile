@@ -10,7 +10,6 @@ check:
 
 # check for all supported targets and target features
 .PHONY: check_all
-.IGNORE: check_all
 check_all:
 	RUSTFLAGS="-C target-feature=-avx2,-avx512f" cargo check --target=x86_64-unknown-linux-gnu --all-features
 	RUSTFLAGS="-C target-feature=-avx2,-avx512f" cargo check --target=x86_64-unknown-linux-gnu --no-default-features
