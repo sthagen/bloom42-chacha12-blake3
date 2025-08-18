@@ -7,7 +7,7 @@ use crate::{BLOCK_SIZE, STATE_WORDS, extract_counter_from_state, inject_counter_
 
 // https://doc.rust-lang.org/stable/core/arch/x86_64/
 
-/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 256 / 32 = 8)
+/// how many ChaCha blocks we compute in parallel (depends on the size of the SIMD vectors, here 256 / 32 = 8)
 pub const SIMD_LANES: usize = 8;
 
 /// A 8-lane array with guaranteed 32-byte alignment.

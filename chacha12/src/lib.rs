@@ -168,7 +168,7 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
             }
         }
 
-        // compile-time CPU detection for x86 and x86_64
+        // compile-time CPU features detection for x86 and x86_64 when the "std" feature is not enabled
         #[cfg(not(feature = "std"))]
         {
             #[cfg(all(target_arch = "x86_64", target_feature = "avx512f"))]
@@ -184,6 +184,7 @@ impl<const ROUNDS: usize> ChaCha<ROUNDS> {
             }
         }
 
+        // fallback for when SIMD acceleration is not available
         chacha_generic::<ROUNDS>(&mut self.state, &mut self.last_keystream_block, plaintext);
     }
 

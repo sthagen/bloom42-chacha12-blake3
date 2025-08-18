@@ -4,7 +4,7 @@ use crate::{BLOCK_SIZE, STATE_WORDS, extract_counter_from_state, inject_counter_
 
 // https://doc.rust-lang.org/stable/core/arch/aarch64
 
-/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 128 / 32 = 4)
+/// how many ChaCha blocks we compute in parallel (depends on the size of the SIMD vectors, here 128 / 32 = 4)
 pub const SIMD_LANES: usize = 4;
 
 // NEON instructions use 128-bit wide vectors, thus we compute 128 / 32 = 4 ChaCha blocks

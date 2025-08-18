@@ -1,6 +1,6 @@
 # ChaCha
 
-Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform.
+Pure-Rust, SIMD-accelerated implementations of the origin ChaCha20 / ChaCha12 / ChaCha8 stream ciphers with a 64-bit counter and 64-bit nonce (AVX2, AVX-512, NEON, WASM sim128).
 
 > **⚠️ Warning ⚠️:** This is a preliminary release, DO NOT USE IN PRODUCTION.
 

@@ -3,7 +3,7 @@ name = "chacha12"
 # Also update README
 version = "0.1.0"
 edition = "2024"
-description = "Pure-Rust, SIMD-accelerated ChaCha20 / ChaCha12 / ChaCha8 for any platform"
+description = "Pure-Rust, SIMD-accelerated implementations of the origin ChaCha20 / ChaCha12 / ChaCha8 stream ciphers with a 64-bit counter and 64-bit nonce (AVX2, AVX-512, NEON, WASM sim128)"
 repository = "https://github.com/bloom42/chacha12-blake3"
 license = "MIT"
 keywords = ["cryptography", "chacha20", "encryption", "chacha12", "simd", "wasm", "chacha", "webassembly"]

@@ -8,7 +8,7 @@ use crate::{BLOCK_SIZE, STATE_WORDS, extract_counter_from_state, inject_counter_
 // https://colfaxresearch.com/knl-avx512
 // https://www.numberworld.org/blogs/2024_8_7_zen5_avx512_teardown
 
-/// how many ChaCha blocks we compute in parallel (depends on the side of the SIMD vectors, here 512 / 32 = 16)
+/// how many ChaCha blocks we compute in parallel (depends on the size of the SIMD vectors, here 512 / 32 = 16)
 pub const SIMD_LANES: usize = 16;
 
 /// A 16-lane array with guaranteed 64-byte alignment.
