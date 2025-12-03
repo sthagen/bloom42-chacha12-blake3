@@ -3,7 +3,7 @@ use chacha20::{KeyIvInit, cipher::StreamCipher};
 use criterion::*;
 
 fn chacha12(c: &mut Criterion) {
-    for n in [64, 2048, 64 * 1024, 1024 * 1024, 10 * 1024 * 1024] {
+    for n in [64, 256, 1024, 4096, 16384, 65536] {
         let mut group = c.benchmark_group(format!("{}", n));
         let mut plaintext = vec![0u8; n];
 
