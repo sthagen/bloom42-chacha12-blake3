@@ -10,8 +10,9 @@ chacha12 = { path = "../chacha12", default-features = false }
 chacha12-blake3 = { path = "../chacha12-blake3", default-features = false }
 
 aes-gcm = { version = "0.10" }
-chacha20 = { version = "0.10.0-rc.0", features = ["legacy"] }
+chacha20 = { version = "0.10.0-rc.5", features = ["legacy"] }
 chacha20poly1305 = { version = "0.10" }
+blake3 = { workspace = true }
 
 [[bench]]
 name = "encrypt"
@@ -19,4 +20,8 @@ harness = false
 
 [[bench]]
 name = "chacha"
+harness = false
+
+[[bench]]
+name = "kdf"
 harness = false

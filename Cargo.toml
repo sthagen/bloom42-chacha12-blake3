@@ -6,3 +6,8 @@ members = [
     "chacha12",
     "chacha12-blake3",
 ]
+
+[workspace.dependencies]
+blake3 = { version = "1", default-features = false, features = ["neon", "wasm32_simd"] }
+constant_time_eq = "0.4"
+zeroize = { version = "1", features = ["simd", "derive"] }

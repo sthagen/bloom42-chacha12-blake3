@@ -1,8 +1,8 @@
-use chacha12::ChaCha12;
+use chacha12::{ChaCha12, ChaCha20};
 use chacha20::{KeyIvInit, cipher::StreamCipher};
 use criterion::*;
 
-fn bench(c: &mut Criterion) {
+fn chacha12(c: &mut Criterion) {
     for n in [64, 2048, 64 * 1024, 1024 * 1024, 10 * 1024 * 1024] {
         let mut group = c.benchmark_group(format!("{}", n));
         let mut plaintext = vec![0u8; n];
@@ -28,5 +28,31 @@ fn bench(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench);
+fn chacha20(c: &mut Criterion) {
+    for n in [64, 2048, 64 * 1024, 1024 * 1024, 10 * 1024 * 1024] {
+        let mut group = c.benchmark_group(format!("{}", n));
+        let mut plaintext = vec![0u8; n];
+
+        let key = [0u8; 32];
+        let djb_nonce = [0u8; 8];
+        let ietf_96b_nonce = [0u8; 12];
+
+        let mut chacha20_rust_crypto = chacha20::ChaCha20::new(&key.into(), &ietf_96b_nonce.into());
+        let mut chacha20 = ChaCha20::new(&key, &djb_nonce);
+
+        group.throughput(Throughput::Bytes(plaintext.len() as u64));
+        group.bench_function("ChaCha20", |b| {
+            b.iter(|| {
+                chacha20.xor_keystream(&mut plaintext);
+            });
+        });
+        group.bench_function("ChaCha20-RustCrypto", |b| {
+            b.iter(|| {
+                chacha20_rust_crypto.apply_keystream(&mut plaintext);
+            });
+        });
+    }
+}
+
+criterion_group!(benches, chacha12, chacha20);
 criterion_main!(benches);

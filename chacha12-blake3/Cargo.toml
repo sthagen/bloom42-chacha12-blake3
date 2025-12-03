@@ -19,9 +19,9 @@ path = "./chacha12_blake3.rs"
 [dependencies]
 chacha12 = { path = "../chacha12", default-features = false }
 
-blake3 = { version = "1", default-features = false, features = ["neon", "wasm32_simd"] }
-constant_time_eq = "0.4"
-zeroize = { version = "1", features = ["simd", "derive"], optional = true }
+blake3 = { workspace = true }
+constant_time_eq = { workspace = true }
+zeroize = { workspace = true, optional = true }
 
 [features]
 default = ["std", "zeroize"]

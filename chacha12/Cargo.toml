@@ -19,8 +19,7 @@ std = []
 zeroize = ["dep:zeroize"]
 
 [dependencies]
-zeroize = { version = "1", features = ["simd", "derive"], optional = true }
-
+zeroize = { workspace = true, optional = true }
 
 [dev-dependencies]
 hex = "0.4"
