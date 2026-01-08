@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM debian:13
 
 ENV TZ="UTC"
 RUN echo "${TZ}" > /etc/timezone
@@ -8,15 +8,14 @@ RUN apt-get update && apt upgrade -y
 RUN apt-get install -y --no-install-recommends \
     # base system. psmisc for killall. openssh-client for git over SSH.
     bash curl wget psmisc ca-certificates lsb-release openssh-client \
-    # dev tools. dnsutils for dig. linux-tools-generic for perf. bsdmainutils for hexdump.
-    git vim make binutils coreutils build-essential pkg-config linux-tools-generic \
-    zip htop wrk zstd gdb dnsutils jq b3sum gnupg libimage-exiftool-perl bsdmainutils xxd \
+    # dev tools. dnsutils for dig. bsdmainutils for hexdump.
+    git vim make binutils coreutils build-essential pkg-config linux-perf ripgrep \
+    zip htop wrk zstd gdb dnsutils jq b3sum gnupg libimage-exiftool-perl bsdmainutils lsof xxd net-tools iproute2 sqlite3 \
     # Rust toolchain
     rustup libfindbin-libs-perl lld mold gcc g++ musl musl-dev musl-tools libc6-dev cmake clang libclang-dev \
     openssl libssl-dev \
-    gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 gcc-x86-64-linux-gnu g++-x86-64-linux-gnu \
     # useful data. mailcap for mimetypes. tzdata for timezones.
-    mailcap tzdata libpcre3-dev
+    mailcap tzdata
 
 # Setup dev user
 ARG USERNAME=dev
