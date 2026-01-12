@@ -1,15 +1,15 @@
-use chacha12_blake3::ChaCha12Blake3;
+use chacha20_blake3::ChaCha20Blake3;
 
 struct Test {
     plaintext: Vec<u8>,
     key: [u8; 32],
-    nonce: [u8; 32],
+    nonce: [u8; 24],
     aad: Vec<u8>,
     expected_ciphertext: Vec<u8>,
 }
 
 #[test]
-fn chacha12_blake3_test_vectors() {
+fn chacha20_blake3_test_vectors() {
     let tests = vec![
         Test {
             plaintext: [].to_vec(),
@@ -17,27 +17,27 @@ fn chacha12_blake3_test_vectors() {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-            nonce: hex::decode("0000000000000000000000000000000000000000000000000000000000000000")
+            nonce: hex::decode("000000000000000000000000000000000000000000000000")
                 .unwrap()
                 .try_into()
                 .unwrap(),
             aad: [].to_vec(),
-            expected_ciphertext: hex::decode("8f3a9c4002093df3e3fa54b595d73ebfc18c8c151d7c9ae6ab06d12f2631bb52")
+            expected_ciphertext: hex::decode("4fbdd67d41f66924b4304f0fc1eaa87a8e90fc7c5304fe3078f0a1b6e6142c33")
                 .unwrap(),
         },
         Test {
-            plaintext: b"ChaCha12".to_vec(),
+            plaintext: b"ChaCha20".to_vec(),
             key: hex::decode("0100000000000000000000000000000000000000000000000000000000000010")
                 .unwrap()
                 .try_into()
                 .unwrap(),
-            nonce: hex::decode("1000000000000000000000000000000000000000000000000000000000000001")
+            nonce: hex::decode("100000000000000000000000000000000000000000000001")
                 .unwrap()
                 .try_into()
                 .unwrap(),
             aad: b"BLAKE3".to_vec(),
             expected_ciphertext: hex::decode(
-                "920ca696bb4df0b2e545be4dc2d25155909d98e96738d9db0c64677a74d628c091ff8f02f57f5480",
+                "48fecfaf8d9553bfe7121700da72362e77e09080ddd55101aaca18cdcf259953923150cb89e1fef2",
             )
             .unwrap(),
         },
@@ -47,20 +47,20 @@ fn chacha12_blake3_test_vectors() {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-            nonce: hex::decode("768e9bda14afb5686cc34de26210f9ff6fa1dfadc64ee3f0793e4979a30fc304")
+            nonce: hex::decode("768e9bda14afb5686cc34de26210f9ff6fa1dfadc64ee3f0")
                 .unwrap()
                 .try_into()
                 .unwrap(),
             aad: hex::decode("c8d69ca92da6c5fd22f1805179fcd36cb7a9d45848fa346ba7118c2f34d23a48").unwrap(),
             expected_ciphertext: hex::decode(
-                "50e6fa9c40c6ef226330ac9a43986cad7ab36367813b1383dd6ed48377ce86c8bc9811551750b2b3650af6b039016c9fa720ca758fa330c09de4a10f76586310",
+                "444d593bb2dea9ecde9cd3839d166141de70481340ce30739b3f0f28b059d63232324ace49e8a19729ac5110a093fba10acaeed93099dea1a9c20463a278c3a7",
             )
             .unwrap(),
         },
     ];
 
     for (i, test) in tests.iter().enumerate() {
-        let cipher = ChaCha12Blake3::new(test.key);
+        let cipher = ChaCha20Blake3::new(test.key);
         let ciphertext = cipher.encrypt(&test.nonce, &test.plaintext, &test.aad);
 
         assert_eq!(

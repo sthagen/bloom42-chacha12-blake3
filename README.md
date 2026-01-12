@@ -1,9 +1,9 @@
-# ChaCha12-BLAKE3
+# ChaCha20-BLAKE3
 
 Simple, Secure and Fast encryption for any CPU.
 
 
-ChaCha12-BLAKE3 is a secure Authenticated Encryption with Associated Data (AEAD) algorithm that is:
+ChaCha20-BLAKE3 is a secure Authenticated Encryption with Associated Data (AEAD) algorithm that is:
 - more secure than classic AEADs by providing message commitment
 - uses long nonces that can safely generated randomly
 - doesn't require any specific harware instruction but instead scales with the width of the SIMD instructions of your CPU (AVX2 / AVX-512 on amd64 and NEON / SVE on amr64)
@@ -18,21 +18,21 @@ It was designed to be the only encryption algorithm you will ever need.
 
 ## Specification
 
-[https://kerkour.com/chacha12-blake3](https://kerkour.com/chacha12-blake3)
+[https://kerkour.com/chacha20-blake3](https://kerkour.com/chacha20-blake3)
 
 
 ## Usage
 
-<div>
-  <!-- Version -->
+<!-- <div>
+  <!-- Version -- >
   <a href="https://crates.io/crates/chacha12-blake3">
     <img src="https://img.shields.io/crates/v/chacha12-blake3.svg?style=flat-square" alt="Crates.io version" />
   </a>
-  <!-- Docs -->
+  <!-- Docs -- >
   <a href="https://docs.rs/chacha12-blake3">
     <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square" alt="docs.rs docs" />
   </a>
-</div>
+</div> -->
 
 
 **Warning ⚠️: A (key, nonce) pair SHOULD NEVER be used to encrypt two messages. You can use either the same key with unique random nonces, an unique key with random or fixed nonces, or the same key with a NON-REPEATING counter in the first X bytes of the nonce. See the specification to learn how much data you can safely encrypt.**
@@ -40,23 +40,23 @@ It was designed to be the only encryption algorithm you will ever need.
 `Cargo.toml`
 ```toml
 [dependencies]
-chacha12-blake3 = "0.9"
+chacha20-blake3 = { git = "https://github.com/skerkour/chacha20-blake3", branch = "main" }
 ```
 
 ```rust
-use chacha12_blake3::ChaCha12Blake3;
+use chacha20_blake3::ChaCha20Blake3;
 
 fn main() {
     // DO NOT USE A ALL-ZERO KEY / NONCE, THIS CODE IS FOR DEMONSTRATION ONLY
     let key = [0u8; 32];
-    let nonce = [0u8; 32];
+    let nonce = [0u8; 24];
     // or with an u64 counter to encrypt up to 2^64 messages with a single key:
     // let mut nonce = [0u8; 32];
     // nonce[..8].copy_from_slice(&counter.to_le_bytes());
 
     let message = b"Hello World!";
 
-    let cipher = ChaCha12Blake3::new(key);
+    let cipher = ChaCha20Blake3::new(key);
 
     let ciphertext: Vec<u8> = cipher.encrypt(&nonce, message, &[]);
 

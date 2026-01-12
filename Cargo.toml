@@ -3,8 +3,8 @@ resolver = "2"
 
 members = [
     "benchmarks",
-    "chacha12",
-    "chacha12-blake3",
+    "chacha",
+    "chacha20-blake3",
 ]
 
 [workspace.dependencies]

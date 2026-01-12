@@ -5,26 +5,26 @@ Pure-Rust, SIMD-accelerated implementations of the original ChaCha20 / ChaCha12 
 > **⚠️ Warning ⚠️:** This is a preliminary release, DO NOT USE IN PRODUCTION.
 
 
-<div>
-  <!-- Version -->
+<!-- <div>
+  <!-- Version -- >
   <a href="https://crates.io/crates/chacha12">
     <img src="https://img.shields.io/crates/v/chacha12.svg?style=flat-square" alt="Crates.io version" />
   </a>
-  <!-- Docs -->
+  <!-- Docs -- >
   <a href="https://docs.rs/chacha12">
     <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square" alt="docs.rs docs" />
   </a>
-</div>
+</div> -->
 
 
 `Cargo.toml`
 ```toml
 [dependencies]
-chacha12 = "0.1"
+chacha = { git = "https://github.com/skerkour/chacha20-blake3", branch = "main" }
 ```
 
 ```rust
-use chacha12::ChaCha12;
+use chacha::ChaCha20;
 
 fn main() {
     // DO NOT USE A ALL-ZERO KEY / NONCE, THIS CODE IS FOR DEMONSTRATION ONLY
@@ -33,7 +33,7 @@ fn main() {
 
     let mut message = b"Hello World!".to_vec();
 
-    let mut cipher = ChaCha12::new(&key, &nonce);
+    let mut cipher = ChaCha20::new(&key, &nonce);
     cipher.xor_keystream(&mut message);
 }
 ```

@@ -29,8 +29,8 @@ test:
 
 .PHONY: test_wasm
 test_wasm:
-	WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 RUSTFLAGS="-C target-feature=-simd128" cargo test -p chacha12 --target=wasm32-wasip1 -- --nocapture
-	WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 RUSTFLAGS="-C target-feature=+simd128" cargo test -p chacha12 --target=wasm32-wasip1 -- --nocapture
+	WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 RUSTFLAGS="-C target-feature=-simd128" cargo test -p chacha --target=wasm32-wasip1 -- --nocapture
+	WASMTIME_BACKTRACE_DETAILS=1 RUST_BACKTRACE=1 RUSTFLAGS="-C target-feature=+simd128" cargo test -p chacha --target=wasm32-wasip1 -- --nocapture
 
 
 .PHONY: bench
@@ -40,7 +40,7 @@ bench:
 # --cfg aes_avx256 or --cfg aes_avx512
 
 .PHONY: release
-release: mdninja
+release:
 	date
 	git checkout main
 	git push
