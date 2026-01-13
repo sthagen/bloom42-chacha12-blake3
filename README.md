@@ -33,7 +33,7 @@ It has been designed to be the only encryption algorithm you will ever need.
 </div> -->
 
 
-**Warning ⚠️: A (key, nonce) pair SHOULD NEVER be used to encrypt two messages. You can use either the same key with unique random nonces, an unique key with random or fixed nonces, or the same key with a NON-REPEATING counter in the first X bytes of the nonce. See the specification to learn how much data you can safely encrypt.**
+**Warning ⚠️: A (key, nonce) pair SHOULD NEVER be used to encrypt two messages. You can use either the same key with unique random nonces, an unique key with random or fixed nonces, or the same key with a non-repeating counter in the first X bytes of the nonce. See the specification to learn how much data you can safely encrypt.**
 
 `Cargo.toml`
 ```toml
