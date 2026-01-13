@@ -6,7 +6,7 @@ Simple, Secure and Fast encryption for any CPU.
 ChaCha20-BLAKE3 is a secure Authenticated Encryption with Associated Data (AEAD) algorithm that is:
 - more secure than classic AEADs by providing message commitment
 - uses long nonces that can safely generated randomly
-- doesn't require any specific harware instruction but instead scales with the width of the SIMD instructions of your CPU (AVX2 / AVX-512 on amd64 and NEON / SVE on amr64)
+- doesn't require any specific harware instruction but instead scales with the width of the SIMD instructions of your CPU (AVX2 / AVX-512 on amd64 and NEON / SVE on arm)
 
 Making it a great fit for everything from microcontrollers to huge servers.
 
