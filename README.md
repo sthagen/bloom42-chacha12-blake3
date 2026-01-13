@@ -51,7 +51,7 @@ fn main() {
     let key = [0u8; 32];
     let nonce = [0u8; 24];
     // or with an u64 counter to encrypt up to 2^64 messages with a single key:
-    // let mut nonce = [0u8; 32];
+    // let mut nonce = [0u8; 24];
     // nonce[..8].copy_from_slice(&counter.to_le_bytes());
 
     let message = b"Hello World!";
