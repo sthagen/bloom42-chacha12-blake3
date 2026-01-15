@@ -19,6 +19,24 @@ It has been designed to be the only encryption algorithm you will ever need.
 [https://kerkour.com/chacha20-blake3](https://kerkour.com/chacha20-blake3)
 
 
+## Performance
+
+
+Indicative single-core performance of pure-Rust, non-optimized implementations from the [official implementation](https://github.com/skerkour/chacha20-blake3) and the [Rust Crypto](https://github.com/RustCrypto) project.
+
+| Message Size | ChaCha20-BLAKE3 | XChaCha20-Poly1305 | AES-256-GCM |
+| ----- | ------------------- | ------------- | ------------- |
+| 64 B  | 103 MB/s          | 116 MB/s   | **540 MB/s** |
+| 1 KB  | 523 MB/s         | 767 MB/s   | **1,287 MB/s** |
+| 64 KB | **2,153 MB/s**   | 1,636 MB/s | 1,475 MB/s |
+| 1 MB  | **3,297 MB/s**   | 1,654 MB/s | 1,476 MB/s |
+| 10 MB | **3,353 MB/s**   | 1,664 MB/s | 1,477 MB/s |
+
+
+Machine: *AMD EPYC 9R45 (virtualized, AWS ma8.xlarge)*
+
+
+
 ## Usage
 
 <!-- <div>
@@ -72,6 +90,10 @@ fn main() {
 | `alloc` | ✓ | Enables the `encrypt` / `decrypt` APIs that allocate memory. |
 | `zeroize` | ✓ | Enables [`zeroize`](https://crates.io/crates/zeroize) to erase sensitive secrets from memory. |
 
+
+## ChaCha12-BLAKE3
+
+The old version, ChaCha12-BLAKE3 is available on the `chacha12-blake3` branch but won't receive any further update.
 
 ## License
 
